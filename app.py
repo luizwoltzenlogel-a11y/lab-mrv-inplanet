@@ -3,8 +3,9 @@ import pandas as pd
 from supabase import create_client, Client
 from datetime import datetime
 import hashlib
+import os
 
-st.set_page_config(page_title="Lab Master - InPlanet", layout="wide")
+st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
 @st.cache_resource
 def init_connection():
@@ -17,19 +18,29 @@ supabase: Client = init_connection()
 def hash_senha(senha_plana):
     return hashlib.sha256(senha_plana.encode()).hexdigest()
 
+# Detecta automaticamente qual nome de imagem você usou no GitHub
+LOGO_PATH = None
+for nome_arquivo in ["inplanet_logo.png", "logo.png"]:
+    if os.path.exists(nome_arquivo):
+        LOGO_PATH = nome_arquivo
+        break
+
 # --- GESTÃO DE SESSÃO E LOGIN ---
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
     st.session_state["user_email"] = ""
     st.session_state["user_perfil"] = ""
 
-# TELA DE LOGIN
+# TELA DE LOGIN (BLOQUEIA O RESTO DO APP)
 if not st.session_state["autenticado"]:
-    st.title("🔐 Lab Master - Acesso Restrito")
-    st.write("Insira suas credenciais para acessar o sistema de gestão metrológica.")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
+    with col_logo2:
+        if LOGO_PATH:
+            st.image(LOGO_PATH, use_container_width=True)
+            
+        st.title("🔐 Lab Master - Acesso Restrito")
+        st.write("Insira suas credenciais para acessar o sistema de gestão metrológica.")
+        
         with st.form("login_form"):
             email_input = st.text_input("E-mail Institucional")
             senha_input = st.text_input("Senha", type="password")
@@ -52,6 +63,10 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- BARRA LATERAL (Usuário Logado) ---
+if LOGO_PATH:
+    st.sidebar.image(LOGO_PATH, use_container_width=True)
+    st.sidebar.divider()
+
 st.sidebar.title("👤 Meu Perfil")
 st.sidebar.write(f"**E-mail:** {st.session_state['user_email']}")
 st.sidebar.write(f"**Permissão:** {st.session_state['user_perfil']}")
@@ -280,7 +295,6 @@ elif menu == "Manutenções & Intervenções":
 elif menu == "Gestão de Acessos":
     st.header("👥 Gestão de Usuários e Permissões")
     
-    # Listar Usuários
     st.subheader("Usuários Ativos")
     res_users = supabase.table("usuarios").select("id, email, perfil, criado_em").execute()
     if res_users.data:
@@ -289,7 +303,6 @@ elif menu == "Gestão de Acessos":
     
     st.divider()
     
-    # Cadastrar/Editar Usuário
     st.subheader("Cadastrar Novo Usuário ou Atualizar Senha/Perfil")
     with st.form("form_user", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
@@ -308,7 +321,6 @@ elif menu == "Gestão de Acessos":
                 else:
                     senha_hash = hash_senha(nova_senha)
                     dado = {"email": novo_email, "perfil": novo_perfil, "senha": senha_hash}
-                    # Upsert: se o email já existir, atualiza perfil e senha.
                     try:
                         supabase.table("usuarios").upsert(dado, on_conflict="email").execute()
                         st.success(f"✅ Usuário {novo_email} salvo com sucesso!")

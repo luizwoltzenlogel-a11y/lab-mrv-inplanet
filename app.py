@@ -4,6 +4,9 @@ from supabase import create_client, Client
 from datetime import datetime
 import hashlib
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
@@ -144,6 +147,48 @@ supabase: Client = init_connection()
 def hash_senha(senha_plana):
     return hashlib.sha256(senha_plana.encode()).hexdigest()
 
+# --- BUSCA DINÂMICA DE GESTORES DO BANCO DE DADOS ---
+def obter_lista_gestores():
+    try:
+        # Tenta buscar destinatários ativos cadastrados
+        res = supabase.table("destinatarios_alertas").select("email").eq("ativo", True).execute()
+        emails = [r["email"] for r in res.data] if res.data else []
+        
+        # Se não houver, busca e-mails com perfil Admin
+        if not emails:
+            res_users = supabase.table("usuarios").select("email").eq("perfil", "Admin").execute()
+            emails = [r["email"] for r in res_users.data] if res_users.data else []
+            
+        return emails if emails else ["suporte@inplanet.earth"]
+    except Exception:
+        return ["suporte@inplanet.earth"]
+
+# --- FUNÇÃO DISPARADORA DE E-MAILS VIA SMTP ---
+def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
+    try:
+        if "smtp" in st.secrets:
+            smtp_server = st.secrets["smtp"]["server"]
+            smtp_port = st.secrets["smtp"]["port"]
+            smtp_user = st.secrets["smtp"]["user"]
+            smtp_password = st.secrets["smtp"]["password"]
+
+            msg = MIMEMultipart()
+            msg["From"] = smtp_user
+            msg["To"] = destinatario
+            msg["Subject"] = assunto
+            msg.attach(MIMEText(mensagem_corpo, "plain"))
+
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+            server.quit()
+            st.info(f"📧 Notificação enviada para: {destinatario}")
+        else:
+            st.warning("⚠️ Configuração SMTP não encontrada nos Secrets. Alerta não enviado por e-mail.")
+    except Exception as e:
+        st.error(f"Erro ao enviar e-mail de alerta: {e}")
+
 # --- GESTÃO DE SESSÃO E LOGIN ---
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
@@ -184,20 +229,17 @@ if not st.session_state["autenticado"]:
                     st.warning("Preencha todos os campos.")
     st.stop()
 
-# --- BARRA LATERAL (MENU LOGADO) ---
+# --- BARRA LATERAL ---
 st.sidebar.markdown(f"""
     <div style="text-align: center; width: 100%; margin-bottom: 1rem;">
         <img src="{LOGO_URL}" style="width: 150px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
     </div>
 """, unsafe_allow_html=True)
 
-# CARREGA MASCOTE CAPIVARA
 if os.path.exists("capivara.jpg"):
     st.sidebar.image("capivara.jpg", caption="Mascote Lab Master 🧪", use_container_width=True)
 elif os.path.exists("capy.jpg"):
     st.sidebar.image("capy.jpg", caption="Mascote Lab Master 🧪", use_container_width=True)
-elif os.path.exists("capivara.png"):
-    st.sidebar.image("capivara.png", caption="Mascote Lab Master 🧪", use_container_width=True)
 
 st.sidebar.divider()
 
@@ -235,7 +277,7 @@ def upload_pdf(file, prefixo):
 
 st.title("🧪 Lab Master - Gestão de Equipamentos")
 
-# 1. DASHBOARD COM PROGRAMAÇÃO LOGÍSTICA & MODALIDADE
+# 1. DASHBOARD
 if menu == "Dashboard & Inventário":
     st.header("📌 Inventário Geral e Status Operacional")
     res = supabase.table("equipamentos").select("*").execute()
@@ -257,10 +299,8 @@ if menu == "Dashboard & Inventário":
 
         st.divider()
         st.subheader("🗓️ Planejamento Logístico de Envio (Janelas de 30, 60 e 90 dias)")
-        st.caption("Organize a logística conforme o tipo de serviço: Envio Externo, In-Loco ou Qualificação OQ/PQ.")
-
-        calib_res = supabase.table("calibracoes").select("equip_tag, data_venc, registrado_por").execute()
         
+        calib_res = supabase.table("calibracoes").select("equip_tag, data_venc, registrado_por").execute()
         if calib_res.data:
             df_calib = pd.DataFrame(calib_res.data)
             df_calib['data_venc_dt'] = pd.to_datetime(df_calib['data_venc'])
@@ -268,7 +308,6 @@ if menu == "Dashboard & Inventário":
             
             df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
             df_calib['dias_restantes'] = (df_calib['data_venc_dt'] - hoje).dt.days
-            
             df_calib = df_calib.merge(df, left_on='equip_tag', right_on='tag', how='left')
             
             df_30 = df_calib[df_calib['dias_restantes'] <= 30].sort_values('dias_restantes')
@@ -276,40 +315,24 @@ if menu == "Dashboard & Inventário":
             df_90 = df_calib[(df_calib['dias_restantes'] > 60) & (df_calib['dias_restantes'] <= 90)].sort_values('dias_restantes')
 
             m1, m2, m3 = st.columns(3)
-            m1.metric("🚨 Urgente (Até 30 dias)", f"{len(df_30)} eq.", help="Ação Imediata / Fornecedores Locais")
-            m2.metric("⚠️ Médio Prazo (31 a 60 dias)", f"{len(df_60)} eq.", help="Preparar Envio / Fornecedores Estaduais")
-            m3.metric("✈️ Longo Prazo (61 a 90 dias)", f"{len(df_90)} eq.", help="Logística Complexa / Fornecedores Internacionais")
+            m1.metric("🚨 Urgente (Até 30 dias)", f"{len(df_30)} eq.")
+            m2.metric("⚠️ Médio Prazo (31 a 60 dias)", f"{len(df_60)} eq.")
+            m3.metric("✈️ Longo Prazo (61 a 90 dias)", f"{len(df_90)} eq.")
 
             tab_30, tab_60, tab_90 = st.tabs([
-                "🔴 Janela 1: Até 30 dias (Urgente / Local)", 
-                "🟡 Janela 2: 31 a 60 dias (Médio Prazo / Estadual)", 
-                "🔵 Janela 3: 61 a 90 dias (Planejamento / Internacional / OQ-PQ)"
+                "🔴 Janela 1: Até 30 dias", 
+                "🟡 Janela 2: 31 a 60 dias", 
+                "🔵 Janela 3: 61 a 90 dias"
             ])
 
             cols_view = ['equip_tag', 'nome', 'marca', 'modalidade_calibracao', 'data_venc', 'dias_restantes', 'status'] if 'modalidade_calibracao' in df_calib.columns else ['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']
 
             with tab_30:
-                if not df_30.empty:
-                    st.error("⚠️ Equipamentos vencidos ou prestes a vencer neste mês:")
-                    st.dataframe(df_30[cols_view], use_container_width=True)
-                else:
-                    st.success("✅ Nenhum equipamento vencido ou a vencer nos próximos 30 dias.")
-
+                st.dataframe(df_30[cols_view] if not df_30.empty else pd.DataFrame(), use_container_width=True)
             with tab_60:
-                if not df_60.empty:
-                    st.warning("📦 Programe agendamentos in-loco e fretes para estes equipamentos:")
-                    st.dataframe(df_60[cols_view], use_container_width=True)
-                else:
-                    st.info("Nenhum equipamento na janela de 31 a 60 dias.")
-
+                st.dataframe(df_60[cols_view] if not df_60.empty else pd.DataFrame(), use_container_width=True)
             with tab_90:
-                if not df_90.empty:
-                    st.info("✈️ Inicie cotações, requisições de OQ/PQ e frete internacional:")
-                    st.dataframe(df_90[cols_view], use_container_width=True)
-                else:
-                    st.info("Nenhum equipamento na janela de 61 a 90 dias.")
-        else:
-            st.info("Nenhuma calibração cadastrada para gerar previsões.")
+                st.dataframe(df_90[cols_view] if not df_90.empty else pd.DataFrame(), use_container_width=True)
     else:
         st.info("Nenhum equipamento cadastrado.")
 
@@ -320,7 +343,7 @@ elif menu == "Prontuário & Tendências":
     
     if eq_res.data:
         opcoes_eq = {f"{item['tag']} - {item['nome']}": item['tag'] for item in eq_res.data}
-        selecionado = st.selectbox("Selecione o equipamento para análise detalhada:", list(opcoes_eq.keys()))
+        selecionado = st.selectbox("Selecione o equipamento:", list(opcoes_eq.keys()))
         tag_alvo = opcoes_eq[selecionado]
         
         c_res = supabase.table("calibracoes").select("*").eq("equip_tag", tag_alvo).execute()
@@ -339,47 +362,12 @@ elif menu == "Prontuário & Tendências":
         col3.metric("Reprovações em Calibração", tot_reprovacoes)
         col4.metric("Total de Registros", len(df_c) + len(df_m))
         
-        st.subheader("🔍 Diagnóstico da Gestão de Riscos")
         if tot_corretivas >= 2:
-            st.error(f"🚨 **Alerta de Falha Crônica:** Este equipamento acumulou {tot_corretivas} manutenções corretivas. Recomenda-se abrir uma Investigação de Causa Raiz / Ação Corretiva.")
-        elif tot_corretivas == 1:
-            st.warning("⚠️ **Atenção:** Equipamento possui 1 registro de manutenção corretiva. Monitore as próximas intervenções.")
-        else:
-            st.success("✅ **Baixa taxa de falha:** Nenhuma manutenção corretiva crítica até o momento.")
-            
-        if tot_reprovacoes > 0:
-            st.error(f"🚨 **Histórico de Deriva Metrológica:** O equipamento possui {tot_reprovacoes} calibração(ões) reprovada(s). Avalie os ensaios realizados no período correspondente.")
-
-        st.subheader("📜 Linha do Tempo Histórica")
-        eventos = []
-        if not df_c.empty:
-            for _, r in df_c.iterrows():
-                eventos.append({
-                    "Data": r.get("data_calib"),
-                    "Categoria": "Calibração",
-                    "Detalhe / Status": f"Resultado: {r.get('resultado')} (Cert: {r.get('certificado', 'N/A')})",
-                    "Registrado por": r.get("registrado_por")
-                })
-        if not df_m.empty:
-            for _, r in df_m.iterrows():
-                eventos.append({
-                    "Data": r.get("data_intervencao"),
-                    "Categoria": "Manutenção",
-                    "Detalhe / Status": f"Tipo: {r.get('tipo')} | Descrição: {r.get('descricao')}",
-                    "Registrado por": r.get("registrado_por")
-                })
-                
-        df_timeline = pd.DataFrame(eventos)
-        if not df_timeline.empty:
-            df_timeline['Data_DT'] = pd.to_datetime(df_timeline['Data'])
-            df_timeline = df_timeline.sort_values('Data_DT', ascending=False)
-            st.dataframe(df_timeline[["Data", "Categoria", "Detalhe / Status", "Registrado por"]], use_container_width=True)
-        else:
-            st.info("Nenhuma calibração ou manutenção registrada para este equipamento ainda.")
+            st.error(f"🚨 **Alerta de Falha Crônica:** Este equipamento acumulou {tot_corretivas} manutenções corretivas.")
     else:
-        st.info("Nenhum equipamento cadastrado no sistema.")
+        st.info("Nenhum equipamento cadastrado.")
 
-# 3. GERENCIAR EQUIPAMENTOS (COM NOVO CAMPO DE MODALIDADE)
+# 3. GERENCIAR EQUIPAMENTOS
 elif menu == "Gerenciar Equipamentos":
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     res_exist = supabase.table("equipamentos").select("*").execute()
@@ -436,64 +424,26 @@ elif menu == "Gerenciar Equipamentos":
                     supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
                     st.success(f"Equipamento {tag} gravado!")
                     st.rerun()
-                else:
-                    st.error("Preencha a Tag e o Nome.")
 
-    with tab_massa:
-        st.markdown("Suba uma planilha **.csv** ou **.xlsx**.")
-        st.caption("Colunas aceitas: `tag`, `nome`, `marca`, `modelo`, `serial_number`, `status`, `modalidade_calibracao`.")
-        arquivo = st.file_uploader("Selecione o arquivo", type=["csv", "xlsx"])
-        if arquivo:
-            try:
-                df_import = pd.read_csv(arquivo) if arquivo.name.endswith(".csv") else pd.read_excel(arquivo)
-                st.dataframe(df_import.head(), use_container_width=True)
-                if st.button("🚀 Confirmar Importação"):
-                    if "tag" not in df_import.columns or "nome" not in df_import.columns:
-                        st.error("O arquivo precisa conter as colunas: 'tag' e 'nome'.")
-                    else:
-                        registros = []
-                        for _, row in df_import.iterrows():
-                            registros.append({
-                                "tag": str(row["tag"]).strip(), "nome": str(row["nome"]).strip(),
-                                "marca": str(row["marca"]).strip() if "marca" in df_import.columns and pd.notna(row["marca"]) else None,
-                                "modelo": str(row["modelo"]).strip() if "modelo" in df_import.columns and pd.notna(row["modelo"]) else None,
-                                "serial_number": str(row["serial_number"]).strip() if "serial_number" in df_import.columns and pd.notna(row["serial_number"]) else None,
-                                "status": str(row["status"]).strip() if "status" in df_import.columns and pd.notna(row["status"]) else "Operacional",
-                                "modalidade_calibracao": str(row["modalidade_calibracao"]).strip() if "modalidade_calibracao" in df_import.columns and pd.notna(row["modalidade_calibracao"]) else "Envio Externo",
-                                "registrado_por": user_email
-                            })
-                        supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()
-                        st.success("Equipamentos importados com sucesso!")
-                        st.rerun()
-            except Exception as e:
-                st.error(f"Erro: {e}")
-
-    if st.session_state["user_perfil"] == "Admin":
-        with tab_exc:
-            st.subheader("🗑️ Excluir Registro")
-            if not df_eq_exist.empty:
-                tag_excluir = st.selectbox("Selecione a TAG:", df_eq_exist["tag"].tolist())
-                if st.button("🗑️ Excluir Permanentemente") and st.checkbox("Confirmo a exclusão"):
-                    try:
-                        supabase.table("equipamentos").delete().eq("tag", tag_excluir).execute()
-                        st.success("Excluído com sucesso!")
-                        st.rerun()
-                    except:
-                        st.error("Erro: Remova primeiro as dependências (calibrações/manutenções).")
-
-# 4. CALIBRAÇÕES
+# 4. CALIBRAÇÕES (SELEÇÃO OBRIGATÓRIA DE GESTOR PARA ALERTAS)
 elif menu == "Calibrações & Qualificações":
     st.header("📐 Registro de Calibração")
     eq_res = supabase.table("equipamentos").select("tag").execute()
     tags = [item["tag"] for item in eq_res.data] if eq_res.data else []
+    lista_gestores = obter_lista_gestores()
     
     if tags:
         with st.form("form_calib", clear_on_submit=True):
-            equip_tag = st.selectbox("Equipamento", tags)
-            data_calib = st.date_input("Data da Calibração")
-            data_venc = st.date_input("Próximo Vencimento")
-            resultado = st.selectbox("Resultado", ["Aprovado", "Reprovado"])
-            certificado = st.text_input("Número do Certificado")
+            col1, col2 = st.columns(2)
+            with col1:
+                equip_tag = st.selectbox("Equipamento *", tags)
+                data_calib = st.date_input("Data da Calibração")
+                resultado = st.selectbox("Resultado *", ["Aprovado", "Reprovado"])
+            with col2:
+                data_venc = st.date_input("Próximo Vencimento")
+                certificado = st.text_input("Número do Certificado")
+                gestor_notificar = st.selectbox("Gestor / Responsável a Notificar em Alertas *", lista_gestores)
+                
             pdf_file = st.file_uploader("Anexar Certificado (PDF)", type=["pdf"])
             
             if st.form_submit_button("Registrar Calibração"):
@@ -504,128 +454,75 @@ elif menu == "Calibrações & Qualificações":
                 novo_status = "Operacional" if resultado == "Aprovado" else "Interditado / Fora de Uso"
                 supabase.table("equipamentos").update({"status": novo_status}).eq("tag", equip_tag).execute()
                 
-                st.success(f"Calibração registrada! Status do equipamento {equip_tag} atualizado para '{novo_status}'.")
-                st.rerun()
+                # Se reprovado, envia e-mail diretamente ao Gestor selecionado
+                if resultado == "Reprovado":
+                    enviar_notificacao_email(
+                        destinatario=gestor_notificar,
+                        assunto=f"🚨 [Lab Master] Reprovação de Calibração: {equip_tag}",
+                        mensagem_corpo=f"Atenção Gestor,\n\nO equipamento {equip_tag} foi REPROVADO na calibração e seu status foi alterado para 'Interditado / Fora de Uso'.\n\nCertificado: {certificado}\nRegistrado por: {user_email}"
+                    )
                 
-        st.subheader("Histórico")
-        calib_res = supabase.table("calibracoes").select("*").execute()
-        if calib_res.data:
-            st.dataframe(pd.DataFrame(calib_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Certificado PDF")}, use_container_width=True)
+                st.success(f"Calibração registrada! Status atualizado para '{novo_status}'.")
+                st.rerun()
 
-# 5. MANUTENÇÕES
+# 5. MANUTENÇÕES (SELEÇÃO OBRIGATÓRIA DE GESTOR PARA ALERTAS)
 elif menu == "Manutenções & Intervenções":
     st.header("🛠️ Registro de Manutenção")
     eq_res = supabase.table("equipamentos").select("tag").execute()
     tags = [item["tag"] for item in eq_res.data] if eq_res.data else []
+    lista_gestores = obter_lista_gestores()
     
     if tags:
         with st.form("form_manut", clear_on_submit=True):
-            equip_tag = st.selectbox("Equipamento", tags)
-            tipo = st.selectbox("Tipo", ["Preventiva", "Corretiva", "Ajuste / Qualificação"])
-            data_intervencao = st.date_input("Data")
-            tecnico = st.text_input("Técnico / Empresa")
-            descricao = st.text_area("Descrição")
-            status_pos = st.selectbox("Status Pós-Manutenção", ["Operacional", "Em Calibração", "Em Manutenção", "Interditado / Fora de Uso"])
+            col1, col2 = st.columns(2)
+            with col1:
+                equip_tag = st.selectbox("Equipamento *", tags)
+                tipo = st.selectbox("Tipo de Intervenção *", ["Preventiva", "Corretiva", "Ajuste / Qualificação"])
+                data_intervencao = st.date_input("Data")
+                tecnico = st.text_input("Técnico / Empresa Responsável")
+            with col2:
+                status_pos = st.selectbox("Status Pós-Manutenção *", ["Operacional", "Em Calibração", "Em Manutenção", "Interditado / Fora de Uso"])
+                gestor_notificar = st.selectbox("Gestor / Responsável a Notificar *", lista_gestores)
+                descricao = st.text_area("Descrição detalhada da intervenção")
+                
             pdf_file = st.file_uploader("Anexar Relatório (PDF)", type=["pdf"])
             
-            if st.form_submit_button("Registrar"):
+            if st.form_submit_button("Registrar Manutenção"):
                 pdf_url = upload_pdf(pdf_file, f"MANUT_{equip_tag}") if pdf_file else None
                 dado = {"equip_tag": equip_tag, "tipo": tipo, "data_intervencao": str(data_intervencao), "tecnico": tecnico, "descricao": descricao, "pdf_url": pdf_url, "registrado_por": user_email}
                 supabase.table("manutencoes").insert(dado).execute()
                 supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
-                st.success("Salvo com sucesso!")
+                
+                # Regra 1: Manutenção Corretiva ou Equipamento Inoperante -> Notifica o Gestor Selecionado
+                if tipo == "Corretiva" or status_pos in ["Interditado / Fora de Uso", "Em Manutenção"]:
+                    enviar_notificacao_email(
+                        destinatario=gestor_notificar,
+                        assunto=f"⚠️ [Lab Master] Alerta de Manutenção/Indisponibilidade: {equip_tag}",
+                        mensagem_corpo=f"Prezado(a) Gestor(a),\n\nFoi registrada uma intervenção que requer sua atenção.\n\nEquipamento: {equip_tag}\nTipo: {tipo}\nTécnico/Empresa: {tecnico}\nNovo Status: {status_pos}\nDescrição: {descricao}\n\nRegistrado por: {user_email}"
+                    )
+                
+                st.success("Manutenção registrada e e-mail de alerta enviado ao Gestor selecionado!")
                 st.rerun()
-                    
-        st.subheader("Histórico")
-        manut_res = supabase.table("manutencoes").select("*").execute()
-        if manut_res.data:
-            st.dataframe(pd.DataFrame(manut_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Relatório PDF")}, use_container_width=True)
 
 # 6. GESTÃO DE ACESSOS & ALERTAS (Apenas Admin)
 elif menu == "Gestão de Acessos":
     st.header("👥 Gestão de Usuários e Destinatários de Alertas")
-    
     tab_users, tab_alertas = st.tabs(["👤 Controle de Usuários", "📩 Destinatários de Alertas por E-mail"])
     
     with tab_users:
-        st.subheader("Usuários Ativos no Sistema")
         res_users = supabase.table("usuarios").select("id, email, perfil, criado_em").execute()
         if res_users.data:
             st.dataframe(pd.DataFrame(res_users.data)[["email", "perfil", "criado_em"]], use_container_width=True)
-        
-        st.divider()
-        st.subheader("Cadastrar Novo Usuário ou Atualizar Senha/Perfil")
-        with st.form("form_user", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                novo_email = st.text_input("E-mail Institucional (@inplanet.earth)")
-            with col2:
-                novo_perfil = st.selectbox("Nível de Acesso", ["Leitura", "Tecnico", "Admin"])
-            with col3:
-                nova_senha = st.text_input("Senha Inicial", type="password")
-                
-            if st.form_submit_button("Salvar Usuário"):
-                if novo_email and nova_senha:
-                    if not novo_email.endswith("@inplanet.earth"):
-                        st.error("❌ Apenas e-mails do domínio @inplanet.earth são permitidos.")
-                    else:
-                        senha_hash = hash_senha(nova_senha)
-                        dado = {"email": novo_email, "perfil": novo_perfil, "senha": senha_hash}
-                        try:
-                            supabase.table("usuarios").upsert(dado, on_conflict="email").execute()
-                            st.success(f"✅ Usuário {novo_email} salvo com sucesso!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao salvar usuário: {e}")
-                else:
-                    st.error("Preencha E-mail e Senha.")
 
     with tab_alertas:
-        st.subheader("📋 Lista de Destinatários dos Relatórios Automáticos")
-        st.caption("Estes e-mails receberão os relatórios diários do GitHub Actions com os avisos de calibração vencida ou a vencer.")
-        
+        st.subheader("📋 Lista de Gestores e Destinatários dos Relatórios")
+        st.caption("Cadastre ou ative os e-mails nesta lista para que apareçam como opção nos formulários de notificação.")
         try:
             res_dest = supabase.table("destinatarios_alertas").select("*").execute()
             df_dest = pd.DataFrame(res_dest.data) if res_dest.data else pd.DataFrame()
-            
             if not df_dest.empty:
                 st.dataframe(df_dest[["email", "ativo", "criado_em"]], use_container_width=True)
             else:
                 st.info("Nenhum e-mail cadastrado na lista de notificações.")
         except Exception:
             st.warning("⚠️ Execute o comando SQL no Supabase para ativar a tabela de destinatários de alertas.")
-            df_dest = pd.DataFrame()
-
-        st.divider()
-        st.subheader("➕ Adicionar ou Alterar Status de Destinatário")
-        
-        with st.form("form_destinatario", clear_on_submit=True):
-            c1, c2 = st.columns([2, 1])
-            with c1:
-                email_alerta = st.text_input("E-mail do Destinatário")
-            with c2:
-                status_alerta = st.selectbox("Status da Notificação", [True, False], format_func=lambda x: "Ativo (Recebe Alertas)" if x else "Inativo (Pausado)")
-                
-            if st.form_submit_button("Salvar Destinatário"):
-                if email_alerta:
-                    try:
-                        dado = {"email": email_alerta, "ativo": status_alerta}
-                        supabase.table("destinatarios_alertas").upsert(dado, on_conflict="email").execute()
-                        st.success(f"Destinatário {email_alerta} atualizado!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar destinatário: {e}")
-                else:
-                    st.error("Digite um e-mail válido.")
-
-        if not df_dest.empty:
-            st.divider()
-            st.subheader("🗑️ Remover Destinatário")
-            email_remover = st.selectbox("Selecione o e-mail para excluir da lista:", df_dest["email"].tolist())
-            if st.button("Excluir Destinatário") and st.checkbox("Confirmo a exclusão do e-mail de alerta"):
-                try:
-                    supabase.table("destinatarios_alertas").delete().eq("email", email_remover).execute()
-                    st.success("Destinatário removido com sucesso!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao remover: {e}")

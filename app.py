@@ -3,19 +3,19 @@ import pandas as pd
 from supabase import create_client, Client
 from datetime import datetime
 import hashlib
-import os
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
-# --- IDENTIDADE VISUAL INSTITUCIONAL COM ALTO CONTRASTE E CENTRALIZAÇÃO ---
+# URL direta do logo oficial em SVG
+LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ddf1d3d9ccc69884af1cd_Group.svg"
+
+# --- IDENTIDADE VISUAL INSTITUCIONAL DE ALTO CONTRASTE ---
 st.markdown("""
     <style>
     :root {
         --inplanet-dark: #121512;
         --inplanet-card: #1C221D;
         --inplanet-input-bg: #252D26;
-        --inplanet-border: #4A6856;
-        --inplanet-border-hover: #72A385;
         --inplanet-green: #3A6B52;
         --inplanet-text: #F0F5F2;
     }
@@ -35,16 +35,16 @@ st.markdown("""
         border-right: 1px solid rgba(255, 255, 255, 0.08);
     }
     
-    /* Centralização perfeita das imagens (Logo) */
+    /* Centralização e filtro para o logo SVG */
     div[data-testid="stImage"] {
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
     }
     
     div[data-testid="stImage"] img {
-        border-radius: 6px;
+        filter: brightness(0) invert(1);
     }
     
     /* Card dos Formulários */
@@ -52,29 +52,33 @@ st.markdown("""
         background-color: var(--inplanet-card);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
-        padding: 1.8rem;
+        padding: 2rem;
     }
     
-    /* CONTRASTE E BORDAS VISÍVEIS NOS CAMPOS */
+    /* ==============================================================
+       CORREÇÃO DE BORDAS DAS CAIXAS: CLARAS E BEM VISÍVEIS 
+       ============================================================== */
     div[data-baseweb="input"] > div,
     div[data-baseweb="select"] > div,
     textarea {
         background-color: var(--inplanet-input-bg) !important;
-        border: 1.5px solid var(--inplanet-border) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.45) !important; /* Borda permanentemente clara */
         border-radius: 8px !important;
         color: #FFFFFF !important;
     }
     
+    /* Mais clara ainda ao passar o mouse */
     div[data-baseweb="input"] > div:hover,
     div[data-baseweb="select"] > div:hover,
     textarea:hover {
-        border-color: var(--inplanet-border-hover) !important;
+        border-color: rgba(255, 255, 255, 0.85) !important; 
     }
     
+    /* Borda Verde brilhante ao clicar/digitar */
     div[data-baseweb="input"]:focus-within > div,
     div[data-baseweb="select"]:focus-within > div,
     textarea:focus {
-        border-color: #82C99B !important;
+        border-color: #82C99B !important; 
         box-shadow: 0 0 0 2px rgba(130, 201, 155, 0.25) !important;
     }
     
@@ -87,7 +91,7 @@ st.markdown("""
     .stButton > button {
         background-color: var(--inplanet-green) !important;
         color: #ffffff !important;
-        border: 1px solid var(--inplanet-border-hover) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
     }
@@ -115,18 +119,6 @@ supabase: Client = init_connection()
 def hash_senha(senha_plana):
     return hashlib.sha256(senha_plana.encode()).hexdigest()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOGO_PATH = None
-
-try:
-    for arquivo in os.listdir(BASE_DIR):
-        nome_lower = arquivo.lower()
-        if "logo" in nome_lower and nome_lower.endswith(('.png', '.jpg', '.jpeg', '.webp', '.svg')):
-            LOGO_PATH = os.path.join(BASE_DIR, arquivo)
-            break
-except Exception:
-    pass
-
 # --- GESTÃO DE SESSÃO E LOGIN ---
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
@@ -136,9 +128,7 @@ if "autenticado" not in st.session_state:
 if not st.session_state["autenticado"]:
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
-        if LOGO_PATH:
-            st.image(LOGO_PATH, width=220)
-            
+        st.image(LOGO_URL, width=220)
         st.markdown("<h2 style='text-align: center; font-weight: 600; margin-top: -10px;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #9AABA0;'>Acesso Restrito - InPlanet Lab Management System</p>", unsafe_allow_html=True)
         
@@ -164,9 +154,8 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- BARRA LATERAL ---
-if LOGO_PATH:
-    st.sidebar.image(LOGO_PATH, width=160)
-    st.sidebar.divider()
+st.sidebar.image(LOGO_URL, width=160)
+st.sidebar.divider()
 
 st.sidebar.title("👤 Meu Perfil")
 st.sidebar.write(f"**E-mail:** {st.session_state['user_email']}")

@@ -3,12 +3,16 @@ import pandas as pd
 from supabase import create_client, Client
 from datetime import datetime
 import hashlib
+import os
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# --- CSS FORÇANDO BORDAS CLARAS EM TODOS OS COMPONENTES E UPLOADS ---
+# URL de uma capivara fofinha padrão (caso você ainda não tenha subido o seu arquivo)
+CAPYBARA_DEFAULT_URL = "https://images.unsplash.com/photo-1551085254-e96b210db58a?auto=format&fit=crop&w=300&q=80"
+
+# --- CSS COM CAIXAS CLARAS E BORDAS DESTACADAS ---
 st.markdown("""
     <style>
     :root {
@@ -28,9 +32,7 @@ st.markdown("""
         padding: 2rem !important;
     }
     
-    /* ==============================================================
-       APLICA CAIXA BRANCA + BORDA VERDE EM TODOS OS INPUTS
-       ============================================================== */
+    /* INPUTS COM FUNDO BRANCO E BORDA VERDE */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -42,7 +44,6 @@ st.markdown("""
         border: 2px solid #3A6B52 !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
-        opacity: 1 !important;
     }
     
     div[data-testid="stTextInput"] > div > div,
@@ -65,43 +66,20 @@ st.markdown("""
     div[data-testid="stSelectbox"] > div > div > div {
         color: #111411 !important;
     }
-    
-    div[data-testid="stPasswordInput"] button,
-    div[data-testid="stDateInput"] svg {
-        color: #111411 !important;
-        fill: #111411 !important;
-    }
-    
-    /* ==============================================================
-       COMPONENTE DE UPLOAD DE ARQUIVOS (CLARO E VISÍVEL)
-       ============================================================== */
+
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
-        border: 2px dashed #3A6B52 !important; /* Borda tracejada para upload */
+        border: 2px dashed #3A6B52 !important;
         border-radius: 8px !important;
         color: #111411 !important;
     }
     
-    /* Ícone de nuvem e texto de instrução dentro do uploader */
     div[data-testid="stFileUploader"] > section svg,
     div[data-testid="stFileUploader"] > section div {
         color: #111411 !important;
         fill: #111411 !important;
-        font-weight: 500 !important;
-    }
-    
-    /* Botão interno "Browse files" */
-    div[data-testid="stFileUploader"] > section button {
-        background-color: var(--inplanet-green) !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 6px !important;
-        font-weight: 600 !important;
     }
 
-    /* ============================================================== */
-
-    /* Rótulos (Labels) */
     div[data-testid="stTextInput"] label,
     div[data-testid="stPasswordInput"] label,
     div[data-testid="stNumberInput"] label,
@@ -111,21 +89,14 @@ st.markdown("""
     div[data-testid="stFileUploader"] label {
         color: #F0F5F2 !important;
         font-weight: 600 !important;
-        font-size: 1rem !important;
     }
     
-    /* Botões Padrões */
     .stButton > button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
-        padding: 0.6rem 1rem !important;
-    }
-    
-    .stButton > button:hover {
-        background-color: #487F63 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -187,6 +158,12 @@ st.sidebar.markdown(f"""
         <img src="{LOGO_URL}" style="width: 150px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
     </div>
 """, unsafe_allow_html=True)
+
+# MASCOTE CAPIVARA NO MENU
+if os.path.exists("capivara.png"):
+    st.sidebar.image("capivara.png", caption="Mascote Lab Master 🧪", use_container_width=True)
+elif os.path.exists("capivara.jpg"):
+    st.sidebar.image("capivara.jpg", caption="Mascote Lab Master 🧪", use_container_width=True)
 
 st.sidebar.divider()
 

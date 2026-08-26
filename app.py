@@ -7,26 +7,65 @@ import os
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
+# --- IDENTIDADE VISUAL INSTITUCIONAL (INPLANET THEME) ---
 st.markdown("""
     <style>
+    /* Cores Globais da Marca InPlanet */
+    :root {
+        --inplanet-dark: #111411;
+        --inplanet-card: #1A201B;
+        --inplanet-green: #3A6B52;
+        --inplanet-text: #E8EFEA;
+    }
+    
+    .stApp {
+        background-color: var(--inplanet-dark);
+        color: var(--inplanet-text);
+    }
+    
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
+    
+    /* Estilização da Barra Lateral */
     [data-testid="stSidebar"] {
-        padding-top: 1rem;
+        background-color: var(--inplanet-card);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
     }
+    
     [data-testid="stSidebarHeader"] img, [data-testid="stSidebar"] img {
         display: block;
         margin-left: auto;
         margin-right: auto;
         padding: 0.5rem 0;
     }
+    
+    /* Formulários e Cards */
     .stForm {
-        background-color: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: var(--inplanet-card);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
         padding: 2rem;
+    }
+    
+    /* Botões Primários */
+    .stButton > button {
+        background-color: var(--inplanet-green) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+    }
+    
+    .stButton > button:hover {
+        opacity: 0.9;
+    }
+    
+    /* Tabelas e Métricas */
+    [data-testid="stMetricValue"] {
+        color: var(--inplanet-green);
+        font-weight: 700;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -68,8 +107,8 @@ if not st.session_state["autenticado"]:
             with c2:
                 st.image(LOGO_PATH, width=200)
             
-        st.markdown("<h2 style='text-align: center;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #888;'>Acesso Restrito - InPlanet Lab Management System</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; font-weight: 600;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #9AABA0;'>Acesso Restrito - InPlanet Lab Management System</p>", unsafe_allow_html=True)
         
         with st.form("login_form"):
             email_input = st.text_input("E-mail Institucional")
@@ -284,7 +323,6 @@ elif menu == "Calibrações & Qualificações":
                 dado = {"equip_tag": equip_tag, "data_calib": str(data_calib), "data_venc": str(data_venc), "resultado": resultado, "certificado": certificado, "pdf_url": pdf_url, "registrado_por": user_email}
                 supabase.table("calibracoes").insert(dado).execute()
                 
-                # Atualiza automaticamente o status do equipamento conforme resultado
                 novo_status = "Operacional" if resultado == "Aprovado" else "Interditado / Fora de Uso"
                 supabase.table("equipamentos").update({"status": novo_status}).eq("tag", equip_tag).execute()
                 

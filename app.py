@@ -7,15 +7,17 @@ import os
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
-# --- IDENTIDADE VISUAL INSTITUCIONAL (INPLANET THEME) ---
+# --- IDENTIDADE VISUAL INSTITUCIONAL COM ALTO CONTRASTE ---
 st.markdown("""
     <style>
-    /* Cores Globais da Marca InPlanet */
     :root {
-        --inplanet-dark: #111411;
-        --inplanet-card: #1A201B;
+        --inplanet-dark: #121512;
+        --inplanet-card: #1C221D;
+        --inplanet-input-bg: #252D26;
+        --inplanet-border: #4A6856;
+        --inplanet-border-hover: #72A385;
         --inplanet-green: #3A6B52;
-        --inplanet-text: #E8EFEA;
+        --inplanet-text: #F0F5F2;
     }
     
     .stApp {
@@ -24,14 +26,13 @@ st.markdown("""
     }
     
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1.5rem;
         padding-bottom: 2rem;
     }
     
-    /* Estilização da Barra Lateral */
     [data-testid="stSidebar"] {
         background-color: var(--inplanet-card);
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
     }
     
     [data-testid="stSidebarHeader"] img, [data-testid="stSidebar"] img {
@@ -41,30 +42,61 @@ st.markdown("""
         padding: 0.5rem 0;
     }
     
-    /* Formulários e Cards */
+    /* Card dos Formulários */
     .stForm {
         background-color: var(--inplanet-card);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
-        padding: 2rem;
+        padding: 1.8rem;
+    }
+    
+    /* CONTRASTE E BORDAS VISÍVEIS NOS CAMPOS (INPUTS E SELECTBOX) */
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="select"] > div,
+    textarea {
+        background-color: var(--inplanet-input-bg) !important;
+        border: 1.5px solid var(--inplanet-border) !important;
+        border-radius: 8px !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Destaque ao passar o mouse */
+    div[data-baseweb="input"] > div:hover,
+    div[data-baseweb="select"] > div:hover,
+    textarea:hover {
+        border-color: var(--inplanet-border-hover) !important;
+    }
+    
+    /* Destaque quando o campo está selecionado/focado */
+    div[data-baseweb="input"]:focus-within > div,
+    div[data-baseweb="select"]:focus-within > div,
+    textarea:focus {
+        border-color: #82C99B !important;
+        box-shadow: 0 0 0 2px rgba(130, 201, 155, 0.25) !important;
+    }
+    
+    /* Rótulos e Texto de Entrada */
+    .stTextInput label, .stSelectbox label, .stTextArea label, .stDateInput label {
+        color: #E0EAE3 !important;
+        font-weight: 500 !important;
     }
     
     /* Botões Primários */
     .stButton > button {
         background-color: var(--inplanet-green) !important;
         color: #ffffff !important;
-        border: none !important;
+        border: 1px solid var(--inplanet-border-hover) !important;
         border-radius: 8px !important;
-        font-weight: 500 !important;
+        font-weight: 600 !important;
     }
     
     .stButton > button:hover {
-        opacity: 0.9;
+        background-color: #487F63 !important;
     }
     
-    /* Tabelas e Métricas */
+    /* Métricas */
     [data-testid="stMetricValue"] {
-        color: var(--inplanet-green);
+        color: #82C99B;
         font-weight: 700;
     }
     </style>

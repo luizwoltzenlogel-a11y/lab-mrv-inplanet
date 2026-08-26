@@ -13,9 +13,9 @@ from supabase import Client, create_client
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
-TEMPO_INATIVIDADE = 600  # 10 minutos
+TEMPO_INATIVIDADE = 600  # 10 minutos em segundos
 
-# --- CSS CONSOLIDADO DE ALTO CONTRASTE ---
+# --- CSS RIGOROSO DE ALTO CONTRASTE (FUNDO BRANCO E LETRAS PRETAS) ---
 st.markdown("""
     <style>
     :root {
@@ -30,7 +30,8 @@ st.markdown("""
         border-radius: 12px !important;
         padding: 2rem !important;
     }
-    /* Campos de Entrada: Fundo Branco, Texto Escuro e Borda Verde */
+
+    /* 1. PADRONIZAÇÃO DE CAIXAS: FUNDO BRANCO E BORDA VERDE */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -38,28 +39,51 @@ st.markdown("""
     div[data-testid="stSelectbox"] > div > div,
     div[data-testid="stTextArea"] textarea,
     div[data-baseweb="input"] > div,
-    div[data-baseweb="select"] > div {
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="base-input"] {
         background-color: #FFFFFF !important;
         border: 2px solid var(--inplanet-green) !important;
         border-radius: 8px !important;
-        color: #111411 !important;
-        -webkit-text-fill-color: #111411 !important;
+        opacity: 1 !important;
+    }
+
+    /* 2. FORÇAR LETRAS PRETAS ABSOLUTAS EM TODOS OS INPUTS E DROPDOWNS */
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stPasswordInput"] input,
+    div[data-testid="stNumberInput"] input,
+    div[data-testid="stDateInput"] input,
+    div[data-testid="stDateInput"] *,
+    div[data-testid="stTextArea"] textarea,
+    div[data-testid="stSelectbox"] *,
+    div[data-baseweb="select"] *,
+    div[data-baseweb="input"] *,
+    div[data-baseweb="popover"] *,
+    div[data-baseweb="menu"] *,
+    div[data-baseweb="datepicker"] *,
+    div[data-baseweb="calendar"] *,
+    ul[role="listbox"] * {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         font-weight: 600 !important;
     }
-    /* Menus Suspensos, Calendários e Ícones */
-    div[data-baseweb="datepicker"] *, div[data-baseweb="calendar"] *,
-    ul[role="listbox"], div[data-baseweb="popover"] *, div[data-baseweb="menu"] *,
-    div[data-testid="stSelectbox"] * {
+
+    /* Fundo dos Popovers, Calendários e Listas de Opções */
+    ul[role="listbox"],
+    div[data-baseweb="popover"],
+    div[data-baseweb="menu"],
+    div[data-baseweb="datepicker"],
+    div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
-        color: #111411 !important;
-        -webkit-text-fill-color: #111411 !important;
-        font-weight: 600 !important;
     }
-    div[data-testid="stSelectbox"] svg, div[data-testid="stDateInput"] svg,
+
+    /* Ícones das Caixas */
+    div[data-testid="stSelectbox"] svg,
+    div[data-testid="stDateInput"] svg,
     div[data-testid="stPasswordInput"] button svg {
-        fill: #111411 !important;
-        color: #111411 !important;
+        fill: #000000 !important;
+        color: #000000 !important;
     }
+
     /* Upload de Arquivos */
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
@@ -67,9 +91,9 @@ st.markdown("""
         border-radius: 8px !important;
     }
     div[data-testid="stFileUploader"] > section * {
-        color: #111411 !important;
-        fill: #111411 !important;
-        -webkit-text-fill-color: #111411 !important;
+        color: #000000 !important;
+        fill: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
     }
     div[data-testid="stFileUploader"] > section button, .stButton > button {
         background-color: var(--inplanet-green) !important;
@@ -80,7 +104,8 @@ st.markdown("""
         font-weight: 600 !important;
     }
     .stButton > button:hover { background-color: #487F63 !important; }
-    /* Rótulos dos Campos */
+
+    /* Rótulos dos Campos (Labels Fora das Caixas) */
     div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
     div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
     div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
@@ -161,7 +186,7 @@ if st.session_state.get("autenticado", False):
     if "ultima_atividade" in st.session_state and (agora - st.session_state["ultima_atividade"]) > TEMPO_INATIVIDADE:
         st.session_state.clear()
         st.query_params.clear()
-        st.warning("⚠️ Sessão expirada por inatividade. Faça login novamente.")
+        st.warning("⚠️ Sessão expirada após 10 minutos de inatividade. Faça login novamente.")
         st.rerun()
     st.session_state["ultima_atividade"] = agora
 
@@ -282,30 +307,68 @@ if menu == "Dashboard & Inventário":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. PRONTUÁRIO & TENDÊNCIAS
+# 2. PRONTUÁRIO & TENDÊNCIAS (RESTAURADO COMPLETO)
 elif menu == "Prontuário & Tendências":
     st.header("📈 Prontuário do Equipamento e Análise de Tendências")
     eq_res = supabase.table("equipamentos").select("tag, nome").execute()
     
     if eq_res.data:
         opcoes_eq = {f"{i['tag']} - {i['nome']}": i['tag'] for i in eq_res.data}
-        tag_alvo = opcoes_eq[st.selectbox("Selecione o equipamento:", list(opcoes_eq.keys()))]
+        tag_alvo = opcoes_eq[st.selectbox("Selecione o equipamento para análise detalhada:", list(opcoes_eq.keys()))]
         
-        df_c = pd.DataFrame(supabase.table("calibracoes").select("*").eq("equip_tag", tag_alvo).execute().data or [])
-        df_m = pd.DataFrame(supabase.table("manutencoes").select("*").eq("equip_tag", tag_alvo).execute().data or [])
+        c_res = supabase.table("calibracoes").select("*").eq("equip_tag", tag_alvo).execute()
+        m_res = supabase.table("manutencoes").select("*").eq("equip_tag", tag_alvo).execute()
         
-        tot_c = len(df_m[df_m["tipo"] == "Corretiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
-        tot_p = len(df_m[df_m["tipo"] == "Preventiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
-        tot_r = len(df_c[df_c["resultado"] == "Reprovado"]) if not df_c.empty and "resultado" in df_c.columns else 0
+        df_c = pd.DataFrame(c_res.data or [])
+        df_m = pd.DataFrame(m_res.data or [])
         
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Manutenções Corretivas", tot_c)
-        c2.metric("Manutenções Preventivas", tot_p)
-        c3.metric("Reprovações em Calibração", tot_r)
-        c4.metric("Total de Registros", len(df_c) + len(df_m))
+        tot_corretivas = len(df_m[df_m["tipo"] == "Corretiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
+        tot_preventivas = len(df_m[df_m["tipo"] == "Preventiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
+        tot_reprovacoes = len(df_c[df_c["resultado"] == "Reprovado"]) if not df_c.empty and "resultado" in df_c.columns else 0
         
-        if tot_c >= 2:
-            st.error(f"🚨 **Alerta de Falha Crônica:** Acúmulo de {tot_c} manutenções corretivas.")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Manutenções Corretivas", tot_corretivas)
+        col2.metric("Manutenções Preventivas", tot_preventivas)
+        col3.metric("Reprovações em Calibração", tot_reprovacoes)
+        col4.metric("Total de Registros", len(df_c) + len(df_m))
+        
+        st.subheader("🔍 Diagnóstico da Gestão de Riscos")
+        if tot_corretivas >= 2:
+            st.error(f"🚨 **Alerta de Falha Crônica:** Este equipamento acumulou {tot_corretivas} manutenções corretivas. Recomenda-se abrir uma Investigação de Causa Raiz / Ação Corretiva.")
+        elif tot_corretivas == 1:
+            st.warning("⚠️ **Atenção:** Equipamento possui 1 registro de manutenção corretiva. Monitore as próximas intervenções.")
+        else:
+            st.success("✅ **Baixa taxa de falha:** Nenhuma manutenção corretiva crítica até o momento.")
+            
+        if tot_reprovacoes > 0:
+            st.error(f"🚨 **Histórico de Deriva Metrológica:** O equipamento possui {tot_reprovacoes} calibração(ões) reprovada(s). Avalie os ensaios realizados no período correspondente.")
+
+        st.subheader("📜 Linha do Tempo Histórica Unificada")
+        eventos = []
+        if not df_c.empty:
+            for _, r in df_c.iterrows():
+                eventos.append({
+                    "Data": r.get("data_calib"),
+                    "Categoria": "Calibração",
+                    "Detalhe / Status": f"Resultado: {r.get('resultado')} (Cert: {r.get('certificado', 'N/A')})",
+                    "Registrado por": r.get("registrado_por")
+                })
+        if not df_m.empty:
+            for _, r in df_m.iterrows():
+                eventos.append({
+                    "Data": r.get("data_intervencao"),
+                    "Categoria": "Manutenção",
+                    "Detalhe / Status": f"Tipo: {r.get('tipo')} | Descrição: {r.get('descricao')}",
+                    "Registrado por": r.get("registrado_por")
+                })
+                
+        df_timeline = pd.DataFrame(eventos)
+        if not df_timeline.empty:
+            df_timeline['Data_DT'] = pd.to_datetime(df_timeline['Data'])
+            df_timeline = df_timeline.sort_values('Data_DT', ascending=False)
+            st.dataframe(df_timeline[["Data", "Categoria", "Detalhe / Status", "Registrado por"]], use_container_width=True)
+        else:
+            st.info("Nenhuma calibração ou manutenção registrada para este equipamento ainda.")
     else:
         st.info("Nenhum equipamento cadastrado.")
 

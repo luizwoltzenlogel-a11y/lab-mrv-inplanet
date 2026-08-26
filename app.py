@@ -8,7 +8,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# --- INJEÇÃO DIRETA NOS ELEMENTOS NATIVOS DO STREAMLIT ---
+# --- CSS FORÇANDO BORDAS CLARAS EM *TODOS* OS TIPOS DE INPUTS ---
 st.markdown("""
     <style>
     :root {
@@ -30,12 +30,16 @@ st.markdown("""
     }
     
     /* ==============================================================
-       FORÇA CAIXAS BRANCAS E BORDAS EM TODOS OS CAMPOS DE TEXTO/SENHA
+       APLICA CAIXA BRANCA + BORDA VERDE EM TODOS OS COMPONENTES
+       (Texto, Senha, Select, Área de Texto, Datas e Arquivos)
        ============================================================== */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
-    div[data-testid="stSelectbox"] > div,
-    textarea {
+    div[data-testid="stNumberInput"] input,
+    div[data-testid="stDateInput"] input,
+    div[data-testid="stSelectbox"] > div > div,
+    div[data-testid="stTextArea"] textarea,
+    div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
         color: #111411 !important;
         border: 2px solid #3A6B52 !important;
@@ -44,29 +48,45 @@ st.markdown("""
         opacity: 1 !important;
     }
     
-    /* Contêiner da caixa de texto */
+    /* Preenche o fundo do contêiner raiz de Textos e Senhas */
     div[data-testid="stTextInput"] > div > div,
-    div[data-testid="stPasswordInput"] > div > div {
+    div[data-testid="stPasswordInput"] > div > div,
+    div[data-testid="stNumberInput"] > div > div,
+    div[data-testid="stDateInput"] > div > div {
         background-color: #FFFFFF !important;
         border: 2px solid #3A6B52 !important;
         border-radius: 8px !important;
     }
 
-    /* Texto digitado e ícone de ocultar senha */
+    /* Cores de fonte interna (Forçar escuro) */
     div[data-testid="stTextInput"] input,
-    div[data-testid="stPasswordInput"] input {
+    div[data-testid="stPasswordInput"] input,
+    div[data-testid="stNumberInput"] input,
+    div[data-testid="stDateInput"] input,
+    div[data-testid="stTextArea"] textarea {
         -webkit-text-fill-color: #111411 !important;
     }
     
-    div[data-testid="stPasswordInput"] button {
+    /* Ajustes específicos do SelectBox (Caixa suspensa) */
+    div[data-testid="stSelectbox"] > div > div > div {
         color: #111411 !important;
     }
+    
+    /* Ícones (como o olho da senha ou calendário) */
+    div[data-testid="stPasswordInput"] button,
+    div[data-testid="stDateInput"] svg {
+        color: #111411 !important;
+        fill: #111411 !important;
+    }
 
-    /* Rótulos acima das caixas */
+    /* Rótulos (Labels) acima das caixas */
     div[data-testid="stTextInput"] label,
     div[data-testid="stPasswordInput"] label,
+    div[data-testid="stNumberInput"] label,
     div[data-testid="stSelectbox"] label,
-    div[data-testid="stTextArea"] label {
+    div[data-testid="stTextArea"] label,
+    div[data-testid="stDateInput"] label,
+    div[data-testid="stFileUploader"] label {
         color: #F0F5F2 !important;
         font-weight: 600 !important;
         font-size: 1rem !important;

@@ -49,7 +49,7 @@ def upload_pdf(file, prefixo):
 
 # --- NAVEGAÇÃO ---
 st.title("🧪 Lab Master - Gestão de Equipamentos (ISO 17025)")
-menu = st.sidebar.radio("Módulos", ["Dashboard & Inventário", "Cadastrar Equipamento", "Calibrações & Qualificações", "Manutenções & Intervenções"])
+menu = st.sidebar.radio("Módulos", ["Dashboard & Inventário", "Gerenciar Equipamentos", "Calibrações & Qualificações", "Manutenções & Intervenções"])
 
 # 1. DASHBOARD
 if menu == "Dashboard & Inventário":
@@ -61,9 +61,8 @@ if menu == "Dashboard & Inventário":
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Equipamentos", len(df))
         col2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
-        col3.metric("Interditados / Manutenção", len(df[df["status"] != "Operacional"]))
+        col3.metric("Interditados / Manutenção", len(df[df["status"]] != "Operacional"]))
         
-        # Exibe inventário com todos os novos campos
         st.dataframe(df[["tag", "nome", "marca", "modelo", "serial_number", "status", "registrado_por"]], use_container_width=True)
 
         # --- ALERTAS VISUAIS DE CALIBRAÇÃO ---
@@ -103,25 +102,47 @@ if menu == "Dashboard & Inventário":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. CADASTRO DE EQUIPAMENTO (COM MARCA, MODELO, SERIAL E IMPORTAÇÃO)
-elif menu == "Cadastrar Equipamento":
-    st.header("📝 Cadastro e Edição de Equipamentos (Req. 6.4.13)")
+# 2. GERENCIAR EQUIPAMENTOS (CADASTRO, EDIÇÃO, IMPORTAÇÃO E EXCLUSÃO)
+elif menu == "Gerenciar Equipamentos":
+    st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     
-    tab_ind, tab_massa = st.tabs(["📝 Cadastro Individual", "📁 Importação em Massa (Excel/CSV)"])
+    res_exist = supabase.table("equipamentos").select("*").execute()
+    df_eq_exist = pd.DataFrame(res_exist.data) if res_exist.data else pd.DataFrame()
     
+    tab_ind, tab_massa, tab_exc = st.tabs(["📝 Cadastrar / Editar", "📁 Importação em Massa", "🗑️ Excluir Equipamento"])
+    
+    # --- TAB 1: CADASTRO E EDIÇÃO ---
     with tab_ind:
-        with st.form("form_equip", clear_on_submit=True):
+        lista_tags = ["-- Cadastrar Novo Equipamento --"] + (df_eq_exist["tag"].tolist() if not df_eq_exist.empty else [])
+        tag_selecionada = st.selectbox("Selecione para EDITAR um existente ou mantenha para NOVO:", lista_tags)
+        
+        def_tag, def_nome, def_marca, def_modelo, def_sn, def_status = "", "", "", "", "", "Operacional"
+        
+        if tag_selecionada != "-- Cadastrar Novo Equipamento --" and not df_eq_exist.empty:
+            row = df_eq_exist[df_eq_exist["tag"] == tag_selecionada].iloc[0]
+            def_tag = str(row.get("tag", ""))
+            def_nome = str(row.get("nome", ""))
+            def_marca = str(row.get("marca", "")) if pd.notna(row.get("marca")) else ""
+            def_modelo = str(row.get("modelo", "")) if pd.notna(row.get("modelo")) else ""
+            def_sn = str(row.get("serial_number", "")) if pd.notna(row.get("serial_number")) else ""
+            def_status = str(row.get("status", "Operacional"))
+            
+        with st.form("form_equip", clear_on_submit=False):
             col1, col2 = st.columns(2)
             with col1:
-                tag = st.text_input("Tag / Código Interno (Ex: EQ-ICP-01)")
-                nome = st.text_input("Nome do Equipamento")
-                marca = st.text_input("Marca / Fabricante")
+                tag = st.text_input("Tag / Código Interno (Ex: EQ-ICP-01)", value=def_tag)
+                nome = st.text_input("Nome do Equipamento", value=def_nome)
+                marca = st.text_input("Marca / Fabricante", value=def_marca)
             with col2:
-                modelo = st.text_input("Modelo")
-                serial_number = st.text_input("Número de Série (Serial Number)")
-                status = st.selectbox("Status Operacional", ["Operacional", "Em Manutenção", "Interditado / Fora de Uso"])
+                modelo = st.text_input("Modelo", value=def_modelo)
+                serial_number = st.text_input("Número de Série (Serial Number)", value=def_sn)
+                
+                opcoes_status = ["Operacional", "Em Manutenção", "Interditado / Fora de Uso"]
+                idx_status = opcoes_status.index(def_status) if def_status in opcoes_status else 0
+                status = st.selectbox("Status Operacional", opcoes_status, index=idx_status)
             
-            if st.form_submit_button("Salvar Equipamento"):
+            label_btn = "Atualizar Equipamento" if tag_selecionada != "-- Cadastrar Novo Equipamento --" else "Salvar Novo Equipamento"
+            if st.form_submit_button(label_btn):
                 if user_email and tag and nome:
                     dado = {
                         "tag": tag, 
@@ -133,11 +154,12 @@ elif menu == "Cadastrar Equipamento":
                         "registrado_por": user_email
                     }
                     supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
-                    st.success(f"Equipamento {tag} salvo com rastreabilidade!")
+                    st.success(f"Equipamento {tag} gravado com sucesso!")
                     st.rerun()
                 else:
                     st.error("Informe seu e-mail corporativo e preencha a Tag e o Nome.")
-                    
+
+    # --- TAB 2: IMPORTAÇÃO EM MASSA ---
     with tab_massa:
         st.markdown("Suba uma planilha **.csv** ou **.xlsx** para cadastrar vários equipamentos de uma só vez.")
         st.caption("Colunas aceitas: `tag`, `nome`, `marca`, `modelo`, `serial_number`, `status`.")
@@ -173,7 +195,29 @@ elif menu == "Cadastrar Equipamento":
             except Exception as e:
                 st.error(f"Erro ao ler o arquivo: {e}")
 
-# 3. CALIBRAÇÕES (COM ANEXO DE PDF)
+    # --- TAB 3: EXCLUSÃO DE EQUIPAMENTO ---
+    with tab_exc:
+        st.subheader("🗑️ Excluir Registro de Equipamento")
+        st.warning("⚠️ **Recomendação ISO 17025:** Para manter o histórico auditável, prefira alterar o status do equipamento para 'Interditado / Fora de Uso' em vez de deletá-lo. Use a exclusão apenas para corrigir cadastros incorretos.")
+        
+        if not df_eq_exist.empty:
+            tag_excluir = st.selectbox("Selecione a TAG do Equipamento para EXCLUIR:", df_eq_exist["tag"].tolist())
+            confirmacao = st.checkbox(f"Confirmo que desejo apagar permanentemente o equipamento {tag_excluir}")
+            
+            if st.button("🗑️ Confirmar Exclusão Permanentemente") and confirmacao:
+                if user_email:
+                    try:
+                        supabase.table("equipamentos").delete().eq("tag", tag_excluir).execute()
+                        st.success(f"Equipamento {tag_excluir} excluído com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error("Não foi possível excluir. Se o equipamento já possui calibrações ou manutenções vinculadas, o histórico precisa ser removido antes ou mantido como Interditado.")
+                else:
+                    st.error("Informe seu e-mail corporativo para realizar a exclusão.")
+        else:
+            st.info("Nenhum equipamento cadastrado no momento.")
+
+# 3. CALIBRAÇÕES
 elif menu == "Calibrações & Qualificações":
     st.header("📐 Registro de Calibração / Qualificação (Req. 6.4.6)")
     eq_res = supabase.table("equipamentos").select("tag, nome").execute()
@@ -224,7 +268,7 @@ elif menu == "Calibrações & Qualificações":
     else:
         st.info("Cadastre um equipamento antes de registrar calibrações.")
 
-# 4. MANUTENÇÕES (COM ANEXO DE PDF)
+# 4. MANUTENÇÕES
 elif menu == "Manutenções & Intervenções":
     st.header("🛠️ Registro de Manutenção (Req. 6.4.9)")
     eq_res = supabase.table("equipamentos").select("tag, nome").execute()

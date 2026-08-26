@@ -7,6 +7,30 @@ import os
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
+st.markdown("""
+    <style>
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    [data-testid="stSidebar"] {
+        padding-top: 1rem;
+    }
+    [data-testid="stSidebarHeader"] img, [data-testid="stSidebar"] img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        padding: 0.5rem 0;
+    }
+    .stForm {
+        background-color: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 2rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 @st.cache_resource
 def init_connection():
     url = st.secrets["SUPABASE_URL"]
@@ -18,23 +42,17 @@ supabase: Client = init_connection()
 def hash_senha(senha_plana):
     return hashlib.sha256(senha_plana.encode()).hexdigest()
 
-# --- BUSCA AVANÇADA E ROBUSTA PELO LOGO ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = None
 
-opcoes_nome = [
-    "inplanet_logo.png", "inplanet_logo.PNG", "inplanet_logo.jpeg", "inplanet_logo.jpg",
-    "logo.png", "logo.PNG", "logo.jpeg", "logo.jpg"
-]
-
-for nome in opcoes_nome:
-    caminho_abs = os.path.join(BASE_DIR, nome)
-    if os.path.exists(caminho_abs):
-        LOGO_PATH = caminho_abs
-        break
-    elif os.path.exists(nome):
-        LOGO_PATH = nome
-        break
+try:
+    for arquivo in os.listdir(BASE_DIR):
+        nome_lower = arquivo.lower()
+        if "logo" in nome_lower and nome_lower.endswith(('.png', '.jpg', '.jpeg', '.webp', '.svg')):
+            LOGO_PATH = os.path.join(BASE_DIR, arquivo)
+            break
+except Exception:
+    pass
 
 # --- GESTÃO DE SESSÃO E LOGIN ---
 if "autenticado" not in st.session_state:
@@ -42,15 +60,16 @@ if "autenticado" not in st.session_state:
     st.session_state["user_email"] = ""
     st.session_state["user_perfil"] = ""
 
-# TELA DE LOGIN (BLOQUEIA O RESTO DO APP)
 if not st.session_state["autenticado"]:
-    col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
-    with col_logo2:
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
         if LOGO_PATH:
-            st.image(LOGO_PATH, use_container_width=True)
+            c1, c2, c3 = st.columns([1, 2, 1])
+            with c2:
+                st.image(LOGO_PATH, width=200)
             
-        st.title("🔐 Lab Master - Acesso Restrito")
-        st.write("Insira suas credenciais para acessar o sistema de gestão metrológica.")
+        st.markdown("<h2 style='text-align: center;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #888;'>Acesso Restrito - InPlanet Lab Management System</p>", unsafe_allow_html=True)
         
         with st.form("login_form"):
             email_input = st.text_input("E-mail Institucional")
@@ -73,9 +92,9 @@ if not st.session_state["autenticado"]:
                     st.warning("Preencha todos os campos.")
     st.stop()
 
-# --- BARRA LATERAL (Usuário Logado) ---
+# --- BARRA LATERAL ---
 if LOGO_PATH:
-    st.sidebar.image(LOGO_PATH, use_container_width=True)
+    st.sidebar.image(LOGO_PATH, width=180)
     st.sidebar.divider()
 
 st.sidebar.title("👤 Meu Perfil")
@@ -88,7 +107,6 @@ if st.sidebar.button("🚪 Sair do Sistema"):
 
 st.sidebar.divider()
 
-# --- DEFINIÇÃO DE MENUS POR PERFIL ---
 menus_disponiveis = ["Dashboard & Inventário"]
 if st.session_state["user_perfil"] in ["Admin", "Tecnico"]:
     menus_disponiveis.extend(["Gerenciar Equipamentos", "Calibrações & Qualificações", "Manutenções & Intervenções"])
@@ -120,10 +138,11 @@ if menu == "Dashboard & Inventário":
     df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
     
     if not df.empty:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total de Equipamentos", len(df))
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total", len(df))
         col2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
-        col3.metric("Interditados / Manutenção", len(df[df["status"] != "Operacional"]))
+        col3.metric("Em Calibração", len(df[df["status"] == "Em Calibração"]))
+        col4.metric("Manutenção / Interditados", len(df[~df["status"].isin(["Operacional", "Em Calibração"])]))
         
         st.dataframe(df[["tag", "nome", "marca", "modelo", "serial_number", "status", "registrado_por"]], use_container_width=True)
 
@@ -190,7 +209,7 @@ elif menu == "Gerenciar Equipamentos":
             with col2:
                 modelo = st.text_input("Modelo", value=def_modelo)
                 serial_number = st.text_input("Número de Série", value=def_sn)
-                opcoes_status = ["Operacional", "Em Manutenção", "Interditado / Fora de Uso"]
+                opcoes_status = ["Operacional", "Em Calibração", "Em Manutenção", "Interditado / Fora de Uso"]
                 idx_status = opcoes_status.index(def_status) if def_status in opcoes_status else 0
                 status = st.selectbox("Status Operacional", opcoes_status, index=idx_status)
             
@@ -206,6 +225,7 @@ elif menu == "Gerenciar Equipamentos":
 
     with tab_massa:
         st.markdown("Suba uma planilha **.csv** ou **.xlsx**.")
+        st.caption("Status aceitos: `Operacional`, `Em Calibração`, `Em Manutenção`, `Interditado / Fora de Uso`.")
         arquivo = st.file_uploader("Selecione o arquivo", type=["csv", "xlsx"])
         if arquivo:
             try:
@@ -259,13 +279,16 @@ elif menu == "Calibrações & Qualificações":
             certificado = st.text_input("Número do Certificado")
             pdf_file = st.file_uploader("Anexar Certificado (PDF)", type=["pdf"])
             
-            if st.form_submit_button("Registrar"):
+            if st.form_submit_button("Registrar Calibração"):
                 pdf_url = upload_pdf(pdf_file, f"CALIB_{equip_tag}") if pdf_file else None
                 dado = {"equip_tag": equip_tag, "data_calib": str(data_calib), "data_venc": str(data_venc), "resultado": resultado, "certificado": certificado, "pdf_url": pdf_url, "registrado_por": user_email}
                 supabase.table("calibracoes").insert(dado).execute()
-                if resultado == "Reprovado":
-                    supabase.table("equipamentos").update({"status": "Interditado / Fora de Uso"}).eq("tag", equip_tag).execute()
-                st.success("Salvo com sucesso!")
+                
+                # Atualiza automaticamente o status do equipamento conforme resultado
+                novo_status = "Operacional" if resultado == "Aprovado" else "Interditado / Fora de Uso"
+                supabase.table("equipamentos").update({"status": novo_status}).eq("tag", equip_tag).execute()
+                
+                st.success(f"Calibração registrada! Status do equipamento {equip_tag} atualizado para '{novo_status}'.")
                 st.rerun()
                 
         st.subheader("Histórico")
@@ -284,9 +307,9 @@ elif menu == "Manutenções & Intervenções":
             equip_tag = st.selectbox("Equipamento", tags)
             tipo = st.selectbox("Tipo", ["Preventiva", "Corretiva", "Ajuste / Qualificação"])
             data_intervencao = st.date_input("Data")
-            tecnico = st.text_input("Técnico")
+            tecnico = st.text_input("Técnico / Empresa")
             descricao = st.text_area("Descrição")
-            status_pos = st.selectbox("Status Pós-Manutenção", ["Operacional", "Em Manutenção", "Interditado / Aguardando Calibração"])
+            status_pos = st.selectbox("Status Pós-Manutenção", ["Operacional", "Em Calibração", "Em Manutenção", "Interditado / Fora de Uso"])
             pdf_file = st.file_uploader("Anexar Relatório (PDF)", type=["pdf"])
             
             if st.form_submit_button("Registrar"):
@@ -302,7 +325,7 @@ elif menu == "Manutenções & Intervenções":
         if manut_res.data:
             st.dataframe(pd.DataFrame(manut_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Relatório PDF")}, use_container_width=True)
 
-# 5. GESTÃO DE ACESSOS (Apenas Admin)
+# 5. GESTÃO DE ACESSOS
 elif menu == "Gestão de Acessos":
     st.header("👥 Gestão de Usuários e Permissões")
     

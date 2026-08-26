@@ -9,7 +9,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# --- CSS COM SUPORTE A BORDAS VISÍVEIS E ALTO CONTRASTE ---
+# --- CSS FORÇANDO COR ESCURA NOS TEXTOS DE SELEÇÃO E ENTRADA ---
 st.markdown("""
     <style>
     :root {
@@ -29,7 +29,9 @@ st.markdown("""
         padding: 2rem !important;
     }
     
-    /* INPUTS COM FUNDO BRANCO E BORDA VERDE */
+    /* ==============================================================
+       APLICA CAIXA BRANCA + BORDA VERDE EM TODOS OS INPUTS
+       ============================================================== */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -53,18 +55,50 @@ st.markdown("""
         border-radius: 8px !important;
     }
 
+    /* FORÇAR TEXTO ESCURO EM CAMPOS DE TEXTO E SELEÇÃO */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
     div[data-testid="stDateInput"] input,
     div[data-testid="stTextArea"] textarea {
         -webkit-text-fill-color: #111411 !important;
-    }
-    
-    div[data-testid="stSelectbox"] > div > div > div {
         color: #111411 !important;
     }
+    
+    /* FORÇAR TEXTO ESCURO E ÍCONE NO SELECTBOX */
+    div[data-testid="stSelectbox"] *,
+    div[data-testid="stSelectbox"] span,
+    div[data-testid="stSelectbox"] p {
+        color: #111411 !important;
+        -webkit-text-fill-color: #111411 !important;
+        font-weight: 600 !important;
+    }
+    
+    div[data-testid="stSelectbox"] svg {
+        fill: #111411 !important;
+        color: #111411 !important;
+    }
+    
+    /* CORREÇÃO DO MENU SUSPENSO QUE ABRE (POPOVER DO SELECTBOX) */
+    ul[role="listbox"] {
+        background-color: #FFFFFF !important;
+        border: 1.5px solid #3A6B52 !important;
+    }
+    
+    ul[role="listbox"] li, 
+    ul[role="listbox"] li * {
+        color: #111411 !important;
+        -webkit-text-fill-color: #111411 !important;
+        font-weight: 500 !important;
+    }
 
+    div[data-testid="stPasswordInput"] button,
+    div[data-testid="stDateInput"] svg {
+        color: #111411 !important;
+        fill: #111411 !important;
+    }
+    
+    /* COMPONENTE DE UPLOAD DE ARQUIVOS */
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
         border: 2px dashed #3A6B52 !important;
@@ -77,7 +111,16 @@ st.markdown("""
         color: #111411 !important;
         fill: #111411 !important;
     }
+    
+    div[data-testid="stFileUploader"] > section button {
+        background-color: var(--inplanet-green) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 6px !important;
+        font-weight: 600 !important;
+    }
 
+    /* Rótulos (Labels) acentuados */
     div[data-testid="stTextInput"] label,
     div[data-testid="stPasswordInput"] label,
     div[data-testid="stNumberInput"] label,
@@ -87,14 +130,21 @@ st.markdown("""
     div[data-testid="stFileUploader"] label {
         color: #F0F5F2 !important;
         font-weight: 600 !important;
+        font-size: 1rem !important;
     }
     
+    /* Botões Padrões */
     .stButton > button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
+        padding: 0.6rem 1rem !important;
+    }
+    
+    .stButton > button:hover {
+        background-color: #487F63 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -500,10 +550,9 @@ elif menu == "Gestão de Acessos":
                     st.error("Preencha E-mail e Senha.")
 
     with tab_alertas:
-        st.subheader(" Lista de Destinatários dos Relatórios Automáticos")
+        st.subheader("📋 Lista de Destinatários dos Relatórios Automáticos")
         st.caption("Estes e-mails receberão os relatórios diários do GitHub Actions com os avisos de calibração vencida ou a vencer.")
         
-        # Lista os destinatários
         try:
             res_dest = supabase.table("destinatarios_alertas").select("*").execute()
             df_dest = pd.DataFrame(res_dest.data) if res_dest.data else pd.DataFrame()
@@ -517,7 +566,7 @@ elif menu == "Gestão de Acessos":
             df_dest = pd.DataFrame()
 
         st.divider()
-        st.subheader("Adicionar ou Alterar Status de Destinatário")
+        st.subheader("➕ Adicionar ou Alterar Status de Destinatário")
         
         with st.form("form_destinatario", clear_on_submit=True):
             c1, c2 = st.columns([2, 1])

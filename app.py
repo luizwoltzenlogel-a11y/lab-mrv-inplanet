@@ -43,7 +43,7 @@ if menu == "Dashboard & Inventário":
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Equipamentos", len(df))
         col2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
-        col3.metric("Interditados / Manutenção", len(df[df["status"] != "Operacional"]))
+        col3.metric("Interditados / Manutenção", len(df[df["status"]] != "Operacional"]))
         
         st.dataframe(df, use_container_width=True)
 
@@ -56,13 +56,9 @@ if menu == "Dashboard & Inventário":
             df_calib['data_venc_dt'] = pd.to_datetime(df_calib['data_venc'])
             hoje = pd.Timestamp.now().normalize()
             
-            # Pega apenas a calibração mais recente de cada equipamento
             df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
-            
-            # Calcula a diferença em dias com suporte nativo do Pandas
             df_calib['dias'] = (df_calib['data_venc_dt'] - hoje).dt.days
             
-            # Filtra calibrações que vencem em 30 dias ou menos (incluindo vencidas)
             vencendo = df_calib[df_calib['dias'] <= 30]
             
             if not vencendo.empty:
@@ -88,22 +84,62 @@ if menu == "Dashboard & Inventário":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. CADASTRO DE EQUIPAMENTO
+# 2. CADASTRO DE EQUIPAMENTO (COM SUPORTE A PLANILHAS)
 elif menu == "Cadastrar Equipamento":
-    st.header("📝 Cadastro / Edição de Equipamento (Req. 6.4.13)")
-    with st.form("form_equip", clear_on_submit=True):
-        tag = st.text_input("Tag / Código Interno (Ex: EQ-ICP-01)")
-        nome = st.text_input("Nome do Equipamento")
-        status = st.selectbox("Status Operacional", ["Operacional", "Em Manutenção", "Interditado / Fora de Uso"])
+    st.header("📝 Cadastro e Edição de Equipamentos (Req. 6.4.13)")
+    
+    tab_ind, tab_massa = st.tabs(["📝 Cadastro Individual", "📁 Importação em Massa (Excel/CSV)"])
+    
+    with tab_ind:
+        with st.form("form_equip", clear_on_submit=True):
+            tag = st.text_input("Tag / Código Interno (Ex: EQ-ICP-01)")
+            nome = st.text_input("Nome do Equipamento")
+            status = st.selectbox("Status Operacional", ["Operacional", "Em Manutenção", "Interditado / Fora de Uso"])
+            
+            if st.form_submit_button("Salvar Equipamento"):
+                if user_email and tag and nome:
+                    dado = {"tag": tag, "nome": nome, "status": status, "registrado_por": user_email}
+                    supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
+                    st.success(f"Equipamento {tag} salvo com rastreabilidade!")
+                    st.rerun()
+                else:
+                    st.error("Informe seu e-mail corporativo e preencha todos os campos.")
+                    
+    with tab_massa:
+        st.markdown("Suba uma planilha **.csv** ou **.xlsx** para cadastrar vários equipamentos de uma só vez.")
+        st.caption("A planilha deve conter obrigatoriamente as colunas: `tag` e `nome` (coluna `status` é opcional).")
         
-        if st.form_submit_button("Salvar Equipamento"):
-            if user_email and tag and nome:
-                dado = {"tag": tag, "nome": nome, "status": status, "registrado_por": user_email}
-                supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
-                st.success(f"Equipamento {tag} salvo com rastreabilidade!")
-                st.rerun()
-            else:
-                st.error("Informe seu e-mail corporativo e preencha todos os campos.")
+        arquivo = st.file_uploader("Selecione o arquivo de inventário", type=["csv", "xlsx"])
+        if arquivo:
+            try:
+                if arquivo.name.endswith(".csv"):
+                    df_import = pd.read_csv(arquivo)
+                else:
+                    df_import = pd.read_excel(arquivo)
+                    
+                st.write("Pré-visualização dos dados encontrados:")
+                st.dataframe(df_import.head(), use_container_width=True)
+                
+                if st.button("🚀 Confirmar Importação em Massa"):
+                    if not user_email:
+                        st.error("Informe seu e-mail corporativo na barra lateral antes de importar.")
+                    elif "tag" not in df_import.columns or "nome" not in df_import.columns:
+                        st.error("Estrutura inválida! O arquivo precisa ter as colunas em minúsculo: 'tag' e 'nome'.")
+                    else:
+                        registros = []
+                        for _, row in df_import.iterrows():
+                            registros.append({
+                                "tag": str(row["tag"]).strip(),
+                                "nome": str(row["nome"]).strip(),
+                                "status": str(row["status"]).strip() if "status" in df_import.columns and pd.notna(row["status"]) else "Operacional",
+                                "registrado_por": user_email
+                            })
+                        
+                        supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()
+                        st.success(f"🎉 {len(registros)} equipamentos importados/atualizados com sucesso!")
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao ler o arquivo: {e}")
 
 # 3. CALIBRAÇÕES
 elif menu == "Calibrações & Qualificações":

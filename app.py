@@ -18,11 +18,22 @@ supabase: Client = init_connection()
 def hash_senha(senha_plana):
     return hashlib.sha256(senha_plana.encode()).hexdigest()
 
-# Detecta automaticamente qual nome de imagem você usou no GitHub
+# --- BUSCA AVANÇADA E ROBUSTA PELO LOGO ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = None
-for nome_arquivo in ["inplanet_logo.png", "logo.png"]:
-    if os.path.exists(nome_arquivo):
-        LOGO_PATH = nome_arquivo
+
+opcoes_nome = [
+    "inplanet_logo.png", "inplanet_logo.PNG", "inplanet_logo.jpeg", "inplanet_logo.jpg",
+    "logo.png", "logo.PNG", "logo.jpeg", "logo.jpg"
+]
+
+for nome in opcoes_nome:
+    caminho_abs = os.path.join(BASE_DIR, nome)
+    if os.path.exists(caminho_abs):
+        LOGO_PATH = caminho_abs
+        break
+    elif os.path.exists(nome):
+        LOGO_PATH = nome
         break
 
 # --- GESTÃO DE SESSÃO E LOGIN ---

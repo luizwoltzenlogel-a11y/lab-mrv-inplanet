@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 from datetime import datetime
+import hashlib
 
 st.set_page_config(page_title="Lab Master - InPlanet", layout="wide")
 
@@ -13,30 +14,70 @@ def init_connection():
 
 supabase: Client = init_connection()
 
-# --- TRAVA DE SEGURANÇA E LOGIN CORPORATIVO ---
-st.sidebar.title("🔐 Acesso Corporativo")
-if "user_email" not in st.session_state:
+# Função para criptografar a senha digitada e comparar com o banco
+def hash_senha(senha_plana):
+    return hashlib.sha256(senha_plana.encode()).hexdigest()
+
+# --- GESTÃO DE SESSÃO E LOGIN ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
     st.session_state["user_email"] = ""
+    st.session_state["user_perfil"] = ""
 
-user_email = st.sidebar.text_input("E-mail institucional:", value=st.session_state["user_email"], placeholder="seu.nome@inplanet.earth")
+# TELA DE LOGIN (Bloqueia o resto do app se não estiver autenticado)
+if not st.session_state["autenticado"]:
+    st.title("🔐 Lab Master - Acesso Restrito")
+    st.write("Insira suas credenciais para acessar o sistema de gestão metrológica.")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("login_form"):
+            email_input = st.text_input("E-mail Institucional")
+            senha_input = st.text_input("Senha", type="password")
+            submit_login = st.form_submit_button("Entrar no Sistema", use_container_width=True)
+            
+            if submit_login:
+                if email_input and senha_input:
+                    senha_criptografada = hash_senha(senha_input)
+                    # Verifica no Supabase
+                    res = supabase.table("usuarios").select("*").eq("email", email_input).eq("senha", senha_criptografada).execute()
+                    
+                    if res.data:
+                        st.session_state["autenticado"] = True
+                        st.session_state["user_email"] = res.data[0]["email"]
+                        st.session_state["user_perfil"] = res.data[0]["perfil"]
+                        st.rerun()
+                    else:
+                        st.error("❌ E-mail ou senha incorretos.")
+                else:
+                    st.warning("Preencha todos os campos.")
+    st.stop() # Interrompe a execução do código aqui se não estiver logado
 
-if user_email:
-    if not user_email.endswith("@inplanet.earth"):
-        st.sidebar.error("❌ Acesso restrito a e-mails @inplanet.earth")
-        st.stop()
-    else:
-        st.session_state["user_email"] = user_email
-        st.sidebar.success(f"Autenticado: {user_email}")
-else:
-    st.info("👋 Informe seu e-mail corporativo na barra lateral para liberar as funcionalidades de escrita.")
+# --- BARRA LATERAL (Usuário Logado) ---
+st.sidebar.title("👤 Meu Perfil")
+st.sidebar.write(f"**E-mail:** {st.session_state['user_email']}")
+st.sidebar.write(f"**Permissão:** {st.session_state['user_perfil']}")
 
-# Função Auxiliar para Upload de PDFs no Supabase Storage
+if st.sidebar.button("🚪 Sair do Sistema"):
+    st.session_state.clear()
+    st.rerun()
+
+st.sidebar.divider()
+
+# --- DEFINIÇÃO DE MENUS POR PERFIL ---
+menus_disponiveis = ["Dashboard & Inventário"]
+if st.session_state["user_perfil"] in ["Admin", "Tecnico"]:
+    menus_disponiveis.extend(["Gerenciar Equipamentos", "Calibrações & Qualificações", "Manutenções & Intervenções"])
+
+menu = st.sidebar.radio("Navegação", menus_disponiveis)
+user_email = st.session_state["user_email"]
+
+# Função Auxiliar para Upload de PDFs
 def upload_pdf(file, prefixo):
     try:
         timestamp = int(datetime.now().timestamp())
         nome_arquivo = f"{prefixo}_{timestamp}_{file.name}"
         conteudo = file.read()
-        
         supabase.storage.from_("certificados").upload(
             path=nome_arquivo,
             file=conteudo,
@@ -47,11 +88,9 @@ def upload_pdf(file, prefixo):
         st.error(f"Erro ao salvar o PDF: {e}")
         return None
 
-# --- NAVEGAÇÃO ---
-st.title("🧪 Lab Master - Gestão de Equipamentos (ISO 17025)")
-menu = st.sidebar.radio("Módulos", ["Dashboard & Inventário", "Gerenciar Equipamentos", "Calibrações & Qualificações", "Manutenções & Intervenções"])
+st.title("🧪 Lab Master - Gestão de Equipamentos")
 
-# 1. DASHBOARD
+# 1. DASHBOARD (Todos veem)
 if menu == "Dashboard & Inventário":
     st.header("📌 Inventário Geral e Status Operacional")
     res = supabase.table("equipamentos").select("*").execute()
@@ -61,12 +100,10 @@ if menu == "Dashboard & Inventário":
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Equipamentos", len(df))
         col2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
-        # LINHA 64 CORRIGIDA AQUI 👇
         col3.metric("Interditados / Manutenção", len(df[df["status"] != "Operacional"]))
         
         st.dataframe(df[["tag", "nome", "marca", "modelo", "serial_number", "status", "registrado_por"]], use_container_width=True)
 
-        # --- ALERTAS VISUAIS DE CALIBRAÇÃO ---
         st.subheader("⚠️ Alertas de Calibração (Vencem em até 30 dias)")
         calib_res = supabase.table("calibracoes").select("equip_tag, data_venc, registrado_por").execute()
         
@@ -86,33 +123,32 @@ if menu == "Dashboard & Inventário":
                     data_str = row['data_venc_dt'].strftime('%d/%m/%Y')
                     status_venc = "VENCIDO!" if dias < 0 else f"Vence em {dias} dias"
                     
-                    col_a, col_b = st.columns([5, 1])
-                    with col_a:
-                        if dias < 0:
-                            st.error(f"🚨 **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
-                        else:
-                            st.warning(f"⚠️ **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
-                    
-                    with col_b:
-                        assunto = f"Alerta de Calibracao: {row['equip_tag']}"
-                        corpo = f"Olá,%0A%0AA calibração do equipamento {row['equip_tag']} {status_venc.lower()}.%0AData limite: {data_str}.%0A%0AAtenciosamente,%0ALab Master InPlanet"
-                        link = f"mailto:{row['registrado_por']}?subject={assunto}&body={corpo}"
-                        st.markdown(f'<a href="{link}"><button style="background-color:#4CAF50;color:white;border:none;padding:5px 10px;border-radius:5px;cursor:pointer;">✉️ Notificar</button></a>', unsafe_allow_html=True)
+                    if dias < 0:
+                        st.error(f"🚨 **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
+                    else:
+                        st.warning(f"⚠️ **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
             else:
                 st.success("✅ Tudo certo! Nenhuma calibração vence nos próximos 30 dias.")
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. GERENCIAR EQUIPAMENTOS (CADASTRO, EDIÇÃO, IMPORTAÇÃO E EXCLUSÃO)
+# 2. GERENCIAR EQUIPAMENTOS (Apenas Admin e Tecnico)
 elif menu == "Gerenciar Equipamentos":
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     
     res_exist = supabase.table("equipamentos").select("*").execute()
     df_eq_exist = pd.DataFrame(res_exist.data) if res_exist.data else pd.DataFrame()
     
-    tab_ind, tab_massa, tab_exc = st.tabs(["📝 Cadastrar / Editar", "📁 Importação em Massa", "🗑️ Excluir Equipamento"])
+    # Abas dinâmicas (Admin vê a aba de Exclusão, Tecnico não)
+    abas = ["📝 Cadastrar / Editar", "📁 Importação em Massa"]
+    if st.session_state["user_perfil"] == "Admin":
+        abas.append("🗑️ Excluir Equipamento")
+        tabs = st.tabs(abas)
+        tab_ind, tab_massa, tab_exc = tabs[0], tabs[1], tabs[2]
+    else:
+        tabs = st.tabs(abas)
+        tab_ind, tab_massa = tabs[0], tabs[1]
     
-    # --- TAB 1: CADASTRO E EDIÇÃO ---
     with tab_ind:
         lista_tags = ["-- Cadastrar Novo Equipamento --"] + (df_eq_exist["tag"].tolist() if not df_eq_exist.empty else [])
         tag_selecionada = st.selectbox("Selecione para EDITAR um existente ou mantenha para NOVO:", lista_tags)
@@ -137,91 +173,67 @@ elif menu == "Gerenciar Equipamentos":
             with col2:
                 modelo = st.text_input("Modelo", value=def_modelo)
                 serial_number = st.text_input("Número de Série (Serial Number)", value=def_sn)
-                
                 opcoes_status = ["Operacional", "Em Manutenção", "Interditado / Fora de Uso"]
                 idx_status = opcoes_status.index(def_status) if def_status in opcoes_status else 0
                 status = st.selectbox("Status Operacional", opcoes_status, index=idx_status)
             
             label_btn = "Atualizar Equipamento" if tag_selecionada != "-- Cadastrar Novo Equipamento --" else "Salvar Novo Equipamento"
             if st.form_submit_button(label_btn):
-                if user_email and tag and nome:
-                    dado = {
-                        "tag": tag, 
-                        "nome": nome, 
-                        "marca": marca,
-                        "modelo": modelo,
-                        "serial_number": serial_number,
-                        "status": status, 
-                        "registrado_por": user_email
-                    }
+                if tag and nome:
+                    dado = {"tag": tag, "nome": nome, "marca": marca, "modelo": modelo, "serial_number": serial_number, "status": status, "registrado_por": user_email}
                     supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
                     st.success(f"Equipamento {tag} gravado com sucesso!")
                     st.rerun()
                 else:
-                    st.error("Informe seu e-mail corporativo e preencha a Tag e o Nome.")
+                    st.error("Preencha a Tag e o Nome.")
 
-    # --- TAB 2: IMPORTAÇÃO EM MASSA ---
     with tab_massa:
         st.markdown("Suba uma planilha **.csv** ou **.xlsx** para cadastrar vários equipamentos de uma só vez.")
-        st.caption("Colunas aceitas: `tag`, `nome`, `marca`, `modelo`, `serial_number`, `status`.")
-        
         arquivo = st.file_uploader("Selecione o arquivo de inventário", type=["csv", "xlsx"])
         if arquivo:
             try:
                 df_import = pd.read_csv(arquivo) if arquivo.name.endswith(".csv") else pd.read_excel(arquivo)
-                st.write("Pré-visualização dos dados encontrados:")
                 st.dataframe(df_import.head(), use_container_width=True)
                 
-                if st.button("🚀 Confirmar Importação em Massa"):
-                    if not user_email:
-                        st.error("Informe seu e-mail corporativo na barra lateral antes de importar.")
-                    elif "tag" not in df_import.columns or "nome" not in df_import.columns:
-                        st.error("O arquivo precisa conter ao menos as colunas: 'tag' e 'nome'.")
+                if st.button("🚀 Confirmar Importação"):
+                    if "tag" not in df_import.columns or "nome" not in df_import.columns:
+                        st.error("O arquivo precisa conter as colunas: 'tag' e 'nome'.")
                     else:
                         registros = []
                         for _, row in df_import.iterrows():
                             registros.append({
-                                "tag": str(row["tag"]).strip(),
-                                "nome": str(row["nome"]).strip(),
+                                "tag": str(row["tag"]).strip(), "nome": str(row["nome"]).strip(),
                                 "marca": str(row["marca"]).strip() if "marca" in df_import.columns and pd.notna(row["marca"]) else None,
                                 "modelo": str(row["modelo"]).strip() if "modelo" in df_import.columns and pd.notna(row["modelo"]) else None,
                                 "serial_number": str(row["serial_number"]).strip() if "serial_number" in df_import.columns and pd.notna(row["serial_number"]) else None,
                                 "status": str(row["status"]).strip() if "status" in df_import.columns and pd.notna(row["status"]) else "Operacional",
                                 "registrado_por": user_email
                             })
-                        
                         supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()
-                        st.success(f"🎉 {len(registros)} equipamentos importados/atualizados com sucesso!")
+                        st.success(f"🎉 {len(registros)} equipamentos importados com sucesso!")
                         st.rerun()
             except Exception as e:
                 st.error(f"Erro ao ler o arquivo: {e}")
 
-    # --- TAB 3: EXCLUSÃO DE EQUIPAMENTO ---
-    with tab_exc:
-        st.subheader("🗑️ Excluir Registro de Equipamento")
-        st.warning("⚠️ **Recomendação ISO 17025:** Para manter o histórico auditável, prefira alterar o status do equipamento para 'Interditado / Fora de Uso' em vez de deletá-lo. Use a exclusão apenas para corrigir cadastros incorretos.")
-        
-        if not df_eq_exist.empty:
-            tag_excluir = st.selectbox("Selecione a TAG do Equipamento para EXCLUIR:", df_eq_exist["tag"].tolist())
-            confirmacao = st.checkbox(f"Confirmo que desejo apagar permanentemente o equipamento {tag_excluir}")
-            
-            if st.button("🗑️ Confirmar Exclusão Permanentemente") and confirmacao:
-                if user_email:
+    # Aba de Exclusão (Visível apenas para Admin)
+    if st.session_state["user_perfil"] == "Admin":
+        with tab_exc:
+            st.subheader("🗑️ Excluir Registro de Equipamento")
+            if not df_eq_exist.empty:
+                tag_excluir = st.selectbox("Selecione a TAG do Equipamento para EXCLUIR:", df_eq_exist["tag"].tolist())
+                confirmacao = st.checkbox(f"Confirmo que desejo apagar permanentemente o equipamento {tag_excluir}")
+                if st.button("🗑️ Confirmar Exclusão Permanentemente") and confirmacao:
                     try:
                         supabase.table("equipamentos").delete().eq("tag", tag_excluir).execute()
                         st.success(f"Equipamento {tag_excluir} excluído com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error("Não foi possível excluir. Se o equipamento já possui calibrações ou manutenções vinculadas, o histórico precisa ser removido antes ou mantido como Interditado.")
-                else:
-                    st.error("Informe seu e-mail corporativo para realizar a exclusão.")
-        else:
-            st.info("Nenhum equipamento cadastrado no momento.")
+                        st.error("Erro: Remova primeiro as calibrações/manutenções vinculadas a este equipamento.")
 
-# 3. CALIBRAÇÕES
+# 3. CALIBRAÇÕES (Apenas Admin e Tecnico)
 elif menu == "Calibrações & Qualificações":
-    st.header("📐 Registro de Calibração / Qualificação (Req. 6.4.6)")
-    eq_res = supabase.table("equipamentos").select("tag, nome").execute()
+    st.header("📐 Registro de Calibração / Qualificação")
+    eq_res = supabase.table("equipamentos").select("tag").execute()
     tags = [item["tag"] for item in eq_res.data] if eq_res.data else []
     
     if tags:
@@ -234,45 +246,26 @@ elif menu == "Calibrações & Qualificações":
             pdf_file = st.file_uploader("Anexar Certificado de Calibração (PDF)", type=["pdf"])
             
             if st.form_submit_button("Registrar Calibração"):
-                if user_email:
-                    pdf_url = upload_pdf(pdf_file, f"CALIB_{equip_tag}") if pdf_file else None
-                    
-                    dado = {
-                        "equip_tag": equip_tag,
-                        "data_calib": str(data_calib),
-                        "data_venc": str(data_venc),
-                        "resultado": resultado,
-                        "certificado": certificado,
-                        "pdf_url": pdf_url,
-                        "registrado_por": user_email
-                    }
-                    supabase.table("calibracoes").insert(dado).execute()
-                    
-                    if resultado == "Reprovado":
-                        supabase.table("equipamentos").update({"status": "Interditado / Fora de Uso"}).eq("tag", equip_tag).execute()
-                        st.warning(f"Equipamento {equip_tag} interditado automaticamente por reprovação!")
-                    else:
-                        st.success("Calibração e documento registrados com sucesso!")
-                    st.rerun()
-                else:
-                    st.error("Insira o e-mail corporativo.")
-        
+                pdf_url = upload_pdf(pdf_file, f"CALIB_{equip_tag}") if pdf_file else None
+                dado = {"equip_tag": equip_tag, "data_calib": str(data_calib), "data_venc": str(data_venc), "resultado": resultado, "certificado": certificado, "pdf_url": pdf_url, "registrado_por": user_email}
+                supabase.table("calibracoes").insert(dado).execute()
+                
+                if resultado == "Reprovado":
+                    supabase.table("equipamentos").update({"status": "Interditado / Fora de Uso"}).eq("tag", equip_tag).execute()
+                st.success("Calibração registrada com sucesso!")
+                st.rerun()
+                
         st.subheader("Histórico de Calibrações")
         calib_res = supabase.table("calibracoes").select("*").execute()
         if calib_res.data:
-            df_calib_show = pd.DataFrame(calib_res.data)
-            st.dataframe(
-                df_calib_show,
-                column_config={"pdf_url": st.column_config.LinkColumn("Certificado PDF", display_text="📎 Visualizar PDF")},
-                use_container_width=True
-            )
+            st.dataframe(pd.DataFrame(calib_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Certificado PDF", display_text="📎 Visualizar PDF")}, use_container_width=True)
     else:
         st.info("Cadastre um equipamento antes de registrar calibrações.")
 
-# 4. MANUTENÇÕES
+# 4. MANUTENÇÕES (Apenas Admin e Tecnico)
 elif menu == "Manutenções & Intervenções":
-    st.header("🛠️ Registro de Manutenção (Req. 6.4.9)")
-    eq_res = supabase.table("equipamentos").select("tag, nome").execute()
+    st.header("🛠️ Registro de Manutenção")
+    eq_res = supabase.table("equipamentos").select("tag").execute()
     tags = [item["tag"] for item in eq_res.data] if eq_res.data else []
     
     if tags:
@@ -286,33 +279,14 @@ elif menu == "Manutenções & Intervenções":
             pdf_file = st.file_uploader("Anexar Relatório / Ordem de Serviço (PDF)", type=["pdf"])
             
             if st.form_submit_button("Registrar Manutenção"):
-                if user_email:
-                    pdf_url = upload_pdf(pdf_file, f"MANUT_{equip_tag}") if pdf_file else None
-                    
-                    dado = {
-                        "equip_tag": equip_tag,
-                        "tipo": tipo,
-                        "data_intervencao": str(data_intervencao),
-                        "tecnico": tecnico,
-                        "descricao": descricao,
-                        "pdf_url": pdf_url,
-                        "registrado_por": user_email
-                    }
-                    supabase.table("manutencoes").insert(dado).execute()
-                    supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
-                    st.success("Registro de manutenção e relatório salvos com sucesso!")
-                    st.rerun()
-                else:
-                    st.error("Insira o e-mail corporativo.")
+                pdf_url = upload_pdf(pdf_file, f"MANUT_{equip_tag}") if pdf_file else None
+                dado = {"equip_tag": equip_tag, "tipo": tipo, "data_intervencao": str(data_intervencao), "tecnico": tecnico, "descricao": descricao, "pdf_url": pdf_url, "registrado_por": user_email}
+                supabase.table("manutencoes").insert(dado).execute()
+                supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
+                st.success("Registro salvo com sucesso!")
+                st.rerun()
                     
         st.subheader("Histórico de Intervenções")
         manut_res = supabase.table("manutencoes").select("*").execute()
         if manut_res.data:
-            df_manut_show = pd.DataFrame(manut_res.data)
-            st.dataframe(
-                df_manut_show,
-                column_config={"pdf_url": st.column_config.LinkColumn("Relatório PDF", display_text="📎 Visualizar PDF")},
-                use_container_width=True
-            )
-    else:
-        st.info("Cadastre um equipamento primeiro.")
+            st.dataframe(pd.DataFrame(manut_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Relatório PDF", display_text="📎 Visualizar PDF")}, use_container_width=True)

@@ -9,10 +9,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# URL de uma capivara fofinha padrão (caso você ainda não tenha subido o seu arquivo)
-CAPYBARA_DEFAULT_URL = "https://images.unsplash.com/photo-1551085254-e96b210db58a?auto=format&fit=crop&w=300&q=80"
-
-# --- CSS COM CAIXAS CLARAS E BORDAS DESTACADAS ---
+# --- CSS COM SUPORTE A BORDAS VISÍVEIS E ALTO CONTRASTE ---
 st.markdown("""
     <style>
     :root {
@@ -44,6 +41,7 @@ st.markdown("""
         border: 2px solid #3A6B52 !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
+        opacity: 1 !important;
     }
     
     div[data-testid="stTextInput"] > div > div,
@@ -159,11 +157,13 @@ st.sidebar.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# MASCOTE CAPIVARA NO MENU
-if os.path.exists("capivara.png"):
-    st.sidebar.image("capivara.png", caption="Mascote Lab Master 🧪", use_container_width=True)
-elif os.path.exists("capivara.jpg"):
+# CARREGA MASCOTE CAPIVARA
+if os.path.exists("capivara.jpg"):
     st.sidebar.image("capivara.jpg", caption="Mascote Lab Master 🧪", use_container_width=True)
+elif os.path.exists("capy.jpg"):
+    st.sidebar.image("capy.jpg", caption="Mascote Lab Master 🧪", use_container_width=True)
+elif os.path.exists("capivara.png"):
+    st.sidebar.image("capivara.png", caption="Mascote Lab Master 🧪", use_container_width=True)
 
 st.sidebar.divider()
 
@@ -177,7 +177,7 @@ if st.sidebar.button("🚪 Sair do Sistema"):
 
 st.sidebar.divider()
 
-menus_disponiveis = ["Dashboard & Inventário"]
+menus_disponiveis = ["Dashboard & Inventário", "Prontuário & Tendências"]
 if st.session_state["user_perfil"] in ["Admin", "Tecnico"]:
     menus_disponiveis.extend(["Gerenciar Equipamentos", "Calibrações & Qualificações", "Manutenções & Intervenções"])
 if st.session_state["user_perfil"] == "Admin":
@@ -241,7 +241,82 @@ if menu == "Dashboard & Inventário":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. GERENCIAR EQUIPAMENTOS
+# 2. PRONTUÁRIO & TENDÊNCIAS (NOVO MÓDULO ISO 17025)
+elif menu == "Prontuário & Tendências":
+    st.header("📈 Prontuário do Equipamento e Análise de Tendências")
+    eq_res = supabase.table("equipamentos").select("tag, nome").execute()
+    
+    if eq_res.data:
+        opcoes_eq = {f"{item['tag']} - {item['nome']}": item['tag'] for item in eq_res.data}
+        selecionado = st.selectbox("Selecione o equipamento para análise detalhada:", list(opcoes_eq.keys()))
+        tag_alvo = opcoes_eq[selecionado]
+        
+        # Busca Históricos
+        c_res = supabase.table("calibracoes").select("*").eq("equip_tag", tag_alvo).execute()
+        m_res = supabase.table("manutencoes").select("*").eq("equip_tag", tag_alvo).execute()
+        
+        df_c = pd.DataFrame(c_res.data) if c_res.data else pd.DataFrame()
+        df_m = pd.DataFrame(m_res.data) if m_res.data else pd.DataFrame()
+        
+        # Métricas de Confiabilidade
+        tot_corretivas = len(df_m[df_m["tipo"] == "Corretiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
+        tot_preventivas = len(df_m[df_m["tipo"] == "Preventiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
+        tot_reprovacoes = len(df_c[df_c["resultado"] == "Reprovado"]) if not df_c.empty and "resultado" in df_c.columns else 0
+        
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Manutenções Corretivas", tot_corretivas)
+        col2.metric("Manutenções Preventivas", tot_preventivas)
+        col3.metric("Reprovações em Calibração", tot_reprovacoes)
+        col4.metric("Total de Registros", len(df_c) + len(df_m))
+        
+        # Alertas de Tendência/Desvios
+        st.subheader("🔍 Diagnóstico da Gestão de Riscos")
+        if tot_corretivas >= 2:
+            st.error(f"🚨 **Alerta de Falha Crônica:** Este equipamento acumulou {tot_corretivas} manutenções corretivas. Recomenda-se abrir uma Investigação de Causa Raiz / Ação Corretiva.")
+        elif tot_corretivas == 1:
+            st.warning("⚠️ **Atenção:** Equipamento possui 1 registro de manutenção corretiva. Monitore as próximas intervenções.")
+        else:
+            st.success("✅ **Baixa taxa de falha:** Nenhuma manutenção corretiva crítica até o momento.")
+            
+        if tot_reprovacoes > 0:
+            st.error(f"🚨 **Histórico de Deriva Metrológica:** O equipamento possui {tot_reprovacoes} calibração(ões) reprovada(s). Avalie os ensaios realizados no período correspondente.")
+
+        # Linha do Tempo Unificada
+        st.subheader("📜 Linha do Tempo Histórica")
+        eventos = []
+        if not df_c.empty:
+            for _, r in df_c.iterrows():
+                eventos.append({
+                    "Data": r.get("data_calib"),
+                    "Categoria": "Calibração",
+                    "Detalhe / Status": f"Resultado: {r.get('resultado')} (Cert: {r.get('certificado', 'N/A')})",
+                    "Registrado por": r.get("registrado_por"),
+                    "Documento PDF": r.get("pdf_url")
+                })
+        if not df_m.empty:
+            for _, r in df_m.iterrows():
+                eventos.append({
+                    "Data": r.get("data_intervencao"),
+                    "Categoria": "Manutenção",
+                    "Detalhe / Status": f"Tipo: {r.get('tipo')} | Descrição: {r.get('descricao')}",
+                    "Registrado por": r.get("registrado_por"),
+                    "Documento PDF": r.get("pdf_url")
+                })
+                
+        df_timeline = pd.DataFrame(eventos)
+        if not df_timeline.empty:
+            df_timeline['Data_DT'] = pd.to_datetime(df_timeline['Data'])
+            df_timeline = df_timeline.sort_values('Data_DT', ascending=False)
+            st.dataframe(
+                df_timeline[["Data", "Categoria", "Detalhe / Status", "Registrado por"]], 
+                use_container_width=True
+            )
+        else:
+            st.info("Nenhuma calibração ou manutenção registrada para este equipamento ainda.")
+    else:
+        st.info("Nenhum equipamento cadastrado no sistema.")
+
+# 3. GERENCIAR EQUIPAMENTOS
 elif menu == "Gerenciar Equipamentos":
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     res_exist = supabase.table("equipamentos").select("*").execute()
@@ -334,7 +409,7 @@ elif menu == "Gerenciar Equipamentos":
                     except:
                         st.error("Erro: Remova primeiro as dependências (calibrações/manutenções).")
 
-# 3. CALIBRAÇÕES
+# 4. CALIBRAÇÕES
 elif menu == "Calibrações & Qualificações":
     st.header("📐 Registro de Calibração")
     eq_res = supabase.table("equipamentos").select("tag").execute()
@@ -365,7 +440,7 @@ elif menu == "Calibrações & Qualificações":
         if calib_res.data:
             st.dataframe(pd.DataFrame(calib_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Certificado PDF")}, use_container_width=True)
 
-# 4. MANUTENÇÕES
+# 5. MANUTENÇÕES
 elif menu == "Manutenções & Intervenções":
     st.header("🛠️ Registro de Manutenção")
     eq_res = supabase.table("equipamentos").select("tag").execute()
@@ -394,7 +469,7 @@ elif menu == "Manutenções & Intervenções":
         if manut_res.data:
             st.dataframe(pd.DataFrame(manut_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Relatório PDF")}, use_container_width=True)
 
-# 5. GESTÃO DE ACESSOS
+# 6. GESTÃO DE ACESSOS
 elif menu == "Gestão de Acessos":
     st.header("👥 Gestão de Usuários e Permissões")
     

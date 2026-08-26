@@ -241,7 +241,7 @@ if menu == "Dashboard & Inventário":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. PRONTUÁRIO & TENDÊNCIAS (NOVO MÓDULO ISO 17025)
+# 2. PRONTUÁRIO & TENDÊNCIAS
 elif menu == "Prontuário & Tendências":
     st.header("📈 Prontuário do Equipamento e Análise de Tendências")
     eq_res = supabase.table("equipamentos").select("tag, nome").execute()
@@ -251,14 +251,12 @@ elif menu == "Prontuário & Tendências":
         selecionado = st.selectbox("Selecione o equipamento para análise detalhada:", list(opcoes_eq.keys()))
         tag_alvo = opcoes_eq[selecionado]
         
-        # Busca Históricos
         c_res = supabase.table("calibracoes").select("*").eq("equip_tag", tag_alvo).execute()
         m_res = supabase.table("manutencoes").select("*").eq("equip_tag", tag_alvo).execute()
         
         df_c = pd.DataFrame(c_res.data) if c_res.data else pd.DataFrame()
         df_m = pd.DataFrame(m_res.data) if m_res.data else pd.DataFrame()
         
-        # Métricas de Confiabilidade
         tot_corretivas = len(df_m[df_m["tipo"] == "Corretiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
         tot_preventivas = len(df_m[df_m["tipo"] == "Preventiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
         tot_reprovacoes = len(df_c[df_c["resultado"] == "Reprovado"]) if not df_c.empty and "resultado" in df_c.columns else 0
@@ -269,7 +267,6 @@ elif menu == "Prontuário & Tendências":
         col3.metric("Reprovações em Calibração", tot_reprovacoes)
         col4.metric("Total de Registros", len(df_c) + len(df_m))
         
-        # Alertas de Tendência/Desvios
         st.subheader("🔍 Diagnóstico da Gestão de Riscos")
         if tot_corretivas >= 2:
             st.error(f"🚨 **Alerta de Falha Crônica:** Este equipamento acumulou {tot_corretivas} manutenções corretivas. Recomenda-se abrir uma Investigação de Causa Raiz / Ação Corretiva.")
@@ -281,7 +278,6 @@ elif menu == "Prontuário & Tendências":
         if tot_reprovacoes > 0:
             st.error(f"🚨 **Histórico de Deriva Metrológica:** O equipamento possui {tot_reprovacoes} calibração(ões) reprovada(s). Avalie os ensaios realizados no período correspondente.")
 
-        # Linha do Tempo Unificada
         st.subheader("📜 Linha do Tempo Histórica")
         eventos = []
         if not df_c.empty:
@@ -290,8 +286,7 @@ elif menu == "Prontuário & Tendências":
                     "Data": r.get("data_calib"),
                     "Categoria": "Calibração",
                     "Detalhe / Status": f"Resultado: {r.get('resultado')} (Cert: {r.get('certificado', 'N/A')})",
-                    "Registrado por": r.get("registrado_por"),
-                    "Documento PDF": r.get("pdf_url")
+                    "Registrado por": r.get("registrado_por")
                 })
         if not df_m.empty:
             for _, r in df_m.iterrows():
@@ -299,18 +294,14 @@ elif menu == "Prontuário & Tendências":
                     "Data": r.get("data_intervencao"),
                     "Categoria": "Manutenção",
                     "Detalhe / Status": f"Tipo: {r.get('tipo')} | Descrição: {r.get('descricao')}",
-                    "Registrado por": r.get("registrado_por"),
-                    "Documento PDF": r.get("pdf_url")
+                    "Registrado por": r.get("registrado_por")
                 })
                 
         df_timeline = pd.DataFrame(eventos)
         if not df_timeline.empty:
             df_timeline['Data_DT'] = pd.to_datetime(df_timeline['Data'])
             df_timeline = df_timeline.sort_values('Data_DT', ascending=False)
-            st.dataframe(
-                df_timeline[["Data", "Categoria", "Detalhe / Status", "Registrado por"]], 
-                use_container_width=True
-            )
+            st.dataframe(df_timeline[["Data", "Categoria", "Detalhe / Status", "Registrado por"]], use_container_width=True)
         else:
             st.info("Nenhuma calibração ou manutenção registrada para este equipamento ainda.")
     else:
@@ -469,41 +460,92 @@ elif menu == "Manutenções & Intervenções":
         if manut_res.data:
             st.dataframe(pd.DataFrame(manut_res.data), column_config={"pdf_url": st.column_config.LinkColumn("Relatório PDF")}, use_container_width=True)
 
-# 6. GESTÃO DE ACESSOS
+# 6. GESTÃO DE ACESSOS & ALERTAS (Apenas Admin)
 elif menu == "Gestão de Acessos":
-    st.header("👥 Gestão de Usuários e Permissões")
+    st.header("👥 Gestão de Usuários e Destinatários de Alertas")
     
-    st.subheader("Usuários Ativos")
-    res_users = supabase.table("usuarios").select("id, email, perfil, criado_em").execute()
-    if res_users.data:
-        df_users = pd.DataFrame(res_users.data)
-        st.dataframe(df_users[["email", "perfil", "criado_em"]], use_container_width=True)
+    tab_users, tab_alertas = st.tabs(["👤 Controle de Usuários", "📩 Destinatários de Alertas por E-mail"])
     
-    st.divider()
-    
-    st.subheader("Cadastrar Novo Usuário ou Atualizar Senha/Perfil")
-    with st.form("form_user", clear_on_submit=True):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            novo_email = st.text_input("E-mail Institucional (@inplanet.earth)")
-        with col2:
-            novo_perfil = st.selectbox("Nível de Acesso", ["Leitura", "Tecnico", "Admin"])
-        with col3:
-            nova_senha = st.text_input("Senha Inicial", type="password")
-            
-        submit_user = st.form_submit_button("Salvar Usuário")
-        if submit_user:
-            if novo_email and nova_senha:
-                if not novo_email.endswith("@inplanet.earth"):
-                    st.error("❌ Apenas e-mails do domínio @inplanet.earth são permitidos.")
+    with tab_users:
+        st.subheader("Usuários Ativos no Sistema")
+        res_users = supabase.table("usuarios").select("id, email, perfil, criado_em").execute()
+        if res_users.data:
+            st.dataframe(pd.DataFrame(res_users.data)[["email", "perfil", "criado_em"]], use_container_width=True)
+        
+        st.divider()
+        st.subheader("Cadastrar Novo Usuário ou Atualizar Senha/Perfil")
+        with st.form("form_user", clear_on_submit=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                novo_email = st.text_input("E-mail Institucional (@inplanet.earth)")
+            with col2:
+                novo_perfil = st.selectbox("Nível de Acesso", ["Leitura", "Tecnico", "Admin"])
+            with col3:
+                nova_senha = st.text_input("Senha Inicial", type="password")
+                
+            if st.form_submit_button("Salvar Usuário"):
+                if novo_email and nova_senha:
+                    if not novo_email.endswith("@inplanet.earth"):
+                        st.error("❌ Apenas e-mails do domínio @inplanet.earth são permitidos.")
+                    else:
+                        senha_hash = hash_senha(nova_senha)
+                        dado = {"email": novo_email, "perfil": novo_perfil, "senha": senha_hash}
+                        try:
+                            supabase.table("usuarios").upsert(dado, on_conflict="email").execute()
+                            st.success(f"✅ Usuário {novo_email} salvo com sucesso!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar usuário: {e}")
                 else:
-                    senha_hash = hash_senha(nova_senha)
-                    dado = {"email": novo_email, "perfil": novo_perfil, "senha": senha_hash}
+                    st.error("Preencha E-mail e Senha.")
+
+    with tab_alertas:
+        st.subheader(" Lista de Destinatários dos Relatórios Automáticos")
+        st.caption("Estes e-mails receberão os relatórios diários do GitHub Actions com os avisos de calibração vencida ou a vencer.")
+        
+        # Lista os destinatários
+        try:
+            res_dest = supabase.table("destinatarios_alertas").select("*").execute()
+            df_dest = pd.DataFrame(res_dest.data) if res_dest.data else pd.DataFrame()
+            
+            if not df_dest.empty:
+                st.dataframe(df_dest[["email", "ativo", "criado_em"]], use_container_width=True)
+            else:
+                st.info("Nenhum e-mail cadastrado na lista de notificações.")
+        except Exception:
+            st.warning("⚠️ Execute o comando SQL no Supabase para ativar a tabela de destinatários de alertas.")
+            df_dest = pd.DataFrame()
+
+        st.divider()
+        st.subheader("Adicionar ou Alterar Status de Destinatário")
+        
+        with st.form("form_destinatario", clear_on_submit=True):
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                email_alerta = st.text_input("E-mail do Destinatário")
+            with c2:
+                status_alerta = st.selectbox("Status da Notificação", [True, False], format_func=lambda x: "Ativo (Recebe Alertas)" if x else "Inativo (Pausado)")
+                
+            if st.form_submit_button("Salvar Destinatário"):
+                if email_alerta:
                     try:
-                        supabase.table("usuarios").upsert(dado, on_conflict="email").execute()
-                        st.success(f"✅ Usuário {novo_email} salvo com sucesso!")
+                        dado = {"email": email_alerta, "ativo": status_alerta}
+                        supabase.table("destinatarios_alertas").upsert(dado, on_conflict="email").execute()
+                        st.success(f"Destinatário {email_alerta} atualizado!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao salvar usuário: {e}")
-            else:
-                st.error("Preencha E-mail e Senha.")
+                        st.error(f"Erro ao salvar destinatário: {e}")
+                else:
+                    st.error("Digite um e-mail válido.")
+
+        if not df_dest.empty:
+            st.divider()
+            st.subheader("🗑️ Remover Destinatário")
+            email_remover = st.selectbox("Selecione o e-mail para excluir da lista:", df_dest["email"].tolist())
+            if st.button("Excluir Destinatário") and st.checkbox("Confirmo a exclusão do e-mail de alerta"):
+                try:
+                    supabase.table("destinatarios_alertas").delete().eq("email", email_remover).execute()
+                    st.success("Destinatário removido com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao remover: {e}")

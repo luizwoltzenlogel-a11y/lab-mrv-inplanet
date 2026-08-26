@@ -1,0 +1,33 @@
+name: Disparo Diario de Alertas Lab Master
+
+on:
+  schedule:
+    # Executa todos os dias às 10:00 UTC (07:00 horário de Brasília)
+    - cron: '0 10 * * *'
+  workflow_dispatch: # Permite disparar manualmente pelo GitHub se desejar
+
+jobs:
+  enviar-alertas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar Código
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar Dependências
+        run: pip install supabase pandas
+
+      - name: Executar Script de Alertas
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SMTP_SERVER: "smtp.gmail.com" # Ou smtp.office365.com se usarem Outlook
+          SMTP_PORT: "587"
+        run: python send_alerts.py

@@ -6,16 +6,17 @@ import hashlib
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
-# URL atualizada do logo oficial em SVG
+# URL do logo oficial em SVG
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# --- IDENTIDADE VISUAL INSTITUCIONAL DE ALTO CONTRASTE ---
+# --- CSS CUSTOMIZADO (CENTRALIZAÇÃO PERFEITA E BORDAS CLARAS) ---
 st.markdown("""
     <style>
     :root {
         --inplanet-dark: #121512;
-        --inplanet-card: #1C221D;
-        --inplanet-input-bg: #252D26;
+        --inplanet-card: #1A201B;
+        --inplanet-input-bg: #222A24;
+        --inplanet-border-light: #7A9A87;
         --inplanet-green: #3A6B52;
         --inplanet-text: #F0F5F2;
     }
@@ -35,50 +36,34 @@ st.markdown("""
         border-right: 1px solid rgba(255, 255, 255, 0.08);
     }
     
-    /* Centralização e filtro para o logo SVG */
-    div[data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-    
-    /* Mantém o logo legível no fundo escuro (inverte para branco/claro) */
-    div[data-testid="stImage"] img {
-        filter: brightness(0) invert(1);
-    }
-    
-    /* Card dos Formulários */
+    /* Card de Formulários e Login */
     .stForm {
         background-color: var(--inplanet-card);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 12px;
         padding: 2rem;
     }
     
-    /* ==============================================================
-       BORDAS DAS CAIXAS: CLARAS E BEM VISÍVEIS 
-       ============================================================== */
-    div[data-baseweb="input"] > div,
+    /* BORDAS CLARAS E DESTACADAS EM TODOS OS CAMPOS */
+    div[data-baseweb="input"],
     div[data-baseweb="select"] > div,
     textarea {
         background-color: var(--inplanet-input-bg) !important;
-        border: 1.5px solid rgba(255, 255, 255, 0.45) !important; 
+        border: 2px solid var(--inplanet-border-light) !important;
         border-radius: 8px !important;
+    }
+    
+    /* Cor do texto interno e ícones */
+    div[data-baseweb="input"] input,
+    textarea {
         color: #FFFFFF !important;
     }
     
-    div[data-baseweb="input"] > div:hover,
-    div[data-baseweb="select"] > div:hover,
-    textarea:hover {
-        border-color: rgba(255, 255, 255, 0.85) !important; 
-    }
-    
-    div[data-baseweb="input"]:focus-within > div,
-    div[data-baseweb="select"]:focus-within > div,
-    textarea:focus {
-        border-color: #82C99B !important; 
-        box-shadow: 0 0 0 2px rgba(130, 201, 155, 0.25) !important;
+    /* Destaque quando selecionado */
+    div[data-baseweb="input"]:focus-within,
+    div[data-baseweb="select"]:focus-within > div {
+        border-color: #9EE0B5 !important;
+        box-shadow: 0 0 0 3px rgba(158, 224, 181, 0.25) !important;
     }
     
     .stTextInput label, .stSelectbox label, .stTextArea label, .stDateInput label {
@@ -86,11 +71,11 @@ st.markdown("""
         font-weight: 500 !important;
     }
     
-    /* Botões Primários */
+    /* Botões */
     .stButton > button {
         background-color: var(--inplanet-green) !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid #5A8C70 !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
     }
@@ -124,12 +109,19 @@ if "autenticado" not in st.session_state:
     st.session_state["user_email"] = ""
     st.session_state["user_perfil"] = ""
 
+# TELA DE LOGIN
 if not st.session_state["autenticado"]:
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
-        st.image(LOGO_URL, width=220)
-        st.markdown("<h2 style='text-align: center; font-weight: 600; margin-top: -10px;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #9AABA0;'>Acesso Restrito - InPlanet Lab Management System</p>", unsafe_allow_html=True)
+        # LOGO HTML CENTRALIZADO (SEM CORTES E ALINHADO COM A CAIXA)
+        st.markdown(f"""
+            <div style="text-align: center; width: 100%; margin-bottom: 1.2rem;">
+                <img src="{LOGO_URL}" style="width: 220px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<h2 style='text-align: center; font-weight: 600; margin-top: -5px;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #9AABA0; margin-bottom: 1.5rem;'>Acesso Restrito - InPlanet Lab Management System</p>", unsafe_allow_html=True)
         
         with st.form("login_form"):
             email_input = st.text_input("E-mail Institucional")
@@ -152,8 +144,13 @@ if not st.session_state["autenticado"]:
                     st.warning("Preencha todos os campos.")
     st.stop()
 
-# --- BARRA LATERAL ---
-st.sidebar.image(LOGO_URL, width=160)
+# --- BARRA LATERAL (MENU LOGADO) ---
+st.sidebar.markdown(f"""
+    <div style="text-align: center; width: 100%; margin-bottom: 1rem;">
+        <img src="{LOGO_URL}" style="width: 150px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
+    </div>
+""", unsafe_allow_html=True)
+
 st.sidebar.divider()
 
 st.sidebar.title("👤 Meu Perfil")

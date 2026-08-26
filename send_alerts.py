@@ -6,17 +6,35 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client
 
+# 1. Validação dos Secrets
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 EMAIL_USER = os.environ.get("EMAIL_USER")
 EMAIL_PASS = os.environ.get("EMAIL_PASS")
 EMAIL_TO = os.environ.get("EMAIL_TO")
+SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+
+missing_secrets = []
+if not SUPABASE_URL: missing_secrets.append("SUPABASE_URL")
+if not SUPABASE_KEY: missing_secrets.append("SUPABASE_KEY")
+if not EMAIL_USER: missing_secrets.append("EMAIL_USER")
+if not EMAIL_PASS: missing_secrets.append("EMAIL_PASS")
+if not EMAIL_TO: missing_secrets.append("EMAIL_TO")
+
+if missing_secrets:
+    print(f"❌ Erro de Configuração: Os seguintes Secrets não foram encontrados no GitHub: {', '.join(missing_secrets)}")
+    print("Verifique em: Settings > Secrets and variables > Actions")
+    exit(1)
 
 def verificar_e_enviar():
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"❌ Erro ao conectar no Supabase: {e}")
+        exit(1)
+
+    # Consulta Equipamentos
     eq_res = supabase.table("equipamentos").select("*").execute()
     df_eq = pd.DataFrame(eq_res.data) if eq_res.data else pd.DataFrame()
     
@@ -26,6 +44,7 @@ def verificar_e_enviar():
         for _, row in indisp.iterrows():
             fora_de_uso.append(f"<li><b>{row['tag']}</b> ({row['nome']}): Status = <i>{row['status']}</i></li>")
 
+    # Consulta Calibrações
     calib_res = supabase.table("calibracoes").select("equip_tag, data_venc").execute()
     alertas_calib = []
     
@@ -63,16 +82,19 @@ def verificar_e_enviar():
         msg.attach(MIMEText(html, "html"))
 
         try:
+            print("Conectando ao servidor SMTP para envio...")
             server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
             server.starttls()
             server.login(EMAIL_USER, EMAIL_PASS)
-            server.sendmail(EMAIL_USER, EMAIL_TO.split(","), msg.as_string())
+            server.sendmail(EMAIL_USER, [email.strip() for email in EMAIL_TO.split(",")], msg.as_string())
             server.quit()
-            print("E-mail de alerta enviado com sucesso!")
+            print("✅ E-mail de alerta enviado com sucesso!")
         except Exception as e:
-            print(f"Erro ao enviar e-mail: {e}")
+            print(f"❌ Erro de Autenticação/Envio no SMTP: {e}")
+            print("Dica: Verifique se o EMAIL_USER e a Senha de Aplicativo (EMAIL_PASS) estão corretos.")
+            exit(1)
     else:
-        print("Tudo em dia! Nenhum e-mail disparado hoje.")
+        print("✅ Tudo em dia! Nenhum e-mail pendente para disparo hoje.")
 
 if __name__ == "__main__":
     verificar_e_enviar()

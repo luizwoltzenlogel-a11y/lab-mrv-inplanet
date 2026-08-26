@@ -15,7 +15,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 TEMPO_INATIVIDADE = 600
 
-# --- CSS DE ALTO CONTRASTE COM CORREÇÃO DEFINITIVA DE DATAS ---
+# --- CSS COM FORCE ABSOLUTO PARA CAIXAS DE DATA BRANCAS E TEXTO PRETO ---
 st.markdown("""
     <style>
     :root {
@@ -31,52 +31,41 @@ st.markdown("""
         padding: 2rem !important;
     }
 
-    /* 1. FUNDO BRANCO E BORDA VERDE EM TODOS OS CAMPOS */
+    /* 1. INPUTS GERAIS (TEXTO, SENHA, NUMERO, SELECT, TEXTAREA) */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
     div[data-testid="stSelectbox"] > div > div,
     div[data-testid="stTextArea"] textarea,
-    div[data-baseweb="input"] > div,
-    div[data-baseweb="select"] > div,
-    div[data-baseweb="base-input"] {
+    div[data-baseweb="select"] > div {
         background-color: #FFFFFF !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         border: 2px solid var(--inplanet-green) !important;
         border-radius: 8px !important;
-        opacity: 1 !important;
+        font-weight: 600 !important;
     }
 
-    /* CORREÇÃO ESPECÍFICA PARA CAIXAS DE DATA (STDATEINPUT) */
-    div[data-testid="stDateInput"] > div,
+    /* 2. OVERRIDE TOTAL E ABSOLUTO DA CAIXA DE DATA (STDATEINPUT) */
+    div[data-testid="stDateInput"] {
+        background-color: transparent !important;
+    }
+    div[data-testid="stDateInput"] *,
+    div[data-testid="stDateInput"] div,
+    div[data-testid="stDateInput"] input,
     div[data-testid="stDateInput"] [data-baseweb="input"],
-    div[data-testid="stDateInput"] [data-baseweb="input"] *,
-    div[data-testid="stDateInput"] input {
+    div[data-testid="stDateInput"] [data-baseweb="base-input"] {
         background-color: #FFFFFF !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
-        border-color: var(--inplanet-green) !important;
         font-weight: 600 !important;
     }
-
-    /* 2. FORÇAR LETRAS PRETAS EM TODOS OS INPUTS E DROPDOWNS */
-    div[data-testid="stTextInput"] input,
-    div[data-testid="stPasswordInput"] input,
-    div[data-testid="stNumberInput"] input,
-    div[data-testid="stTextArea"] textarea,
-    div[data-testid="stSelectbox"] *,
-    div[data-baseweb="select"] *,
-    div[data-baseweb="input"] *,
-    div[data-baseweb="popover"] *,
-    div[data-baseweb="menu"] *,
-    div[data-baseweb="datepicker"] *,
-    div[data-baseweb="calendar"] *,
-    ul[role="listbox"] * {
-        color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important;
-        font-weight: 600 !important;
+    div[data-testid="stDateInput"] [data-baseweb="input"] {
+        border: 2px solid var(--inplanet-green) !important;
+        border-radius: 8px !important;
     }
 
-    /* Popovers, Calendários e Listas de Opções */
+    /* 3. DROPDOWNS, CALENDÁRIOS E POPOVERS */
     ul[role="listbox"],
     div[data-baseweb="popover"],
     div[data-baseweb="menu"],
@@ -84,8 +73,18 @@ st.markdown("""
     div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
     }
+    ul[role="listbox"] *,
+    div[data-baseweb="popover"] *,
+    div[data-baseweb="menu"] *,
+    div[data-baseweb="datepicker"] *,
+    div[data-baseweb="calendar"] * {
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+        font-weight: 600 !important;
+    }
 
-    /* Ícones (Calendário e Setas) */
+    /* ÍCONES */
     div[data-testid="stSelectbox"] svg,
     div[data-testid="stDateInput"] svg,
     div[data-testid="stPasswordInput"] button svg {
@@ -94,7 +93,7 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-    /* Upload de Arquivos */
+    /* UPLOAD DE ARQUIVOS */
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
         border: 2px dashed var(--inplanet-green) !important;
@@ -105,8 +104,11 @@ st.markdown("""
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
     }
-    div[data-testid="stFileUploader"] section button, .stButton > button,
-    div[data-testid="stFormSubmitButton"] > button {
+
+    /* BOTÕES */
+    .stButton > button,
+    div[data-testid="stFormSubmitButton"] > button,
+    div[data-testid="stFileUploader"] section button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
         -webkit-text-fill-color: #FFFFFF !important;
@@ -120,13 +122,17 @@ st.markdown("""
         background-color: #487F63 !important; 
     }
 
-    /* Rótulos dos Campos (Labels) */
-    div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
-    div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
-    div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
+    /* LABELS (TÍTULOS ACIMA DAS CAIXAS) */
+    div[data-testid="stTextInput"] label, 
+    div[data-testid="stPasswordInput"] label,
+    div[data-testid="stNumberInput"] label, 
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stTextArea"] label, 
+    div[data-testid="stDateInput"] label,
     div[data-testid="stFileUploader"] label {
         color: #F0F5F2 !important;
         -webkit-text-fill-color: #F0F5F2 !important;
+        background-color: transparent !important;
         font-weight: 600 !important;
     }
     </style>

@@ -9,7 +9,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# --- CSS FORÇANDO COR ESCURA NOS TEXTOS DE SELEÇÃO E ENTRADA ---
+# --- CSS DEFINITIVO DE ALTO CONTRASTE ---
 st.markdown("""
     <style>
     :root {
@@ -29,20 +29,18 @@ st.markdown("""
         padding: 2rem !important;
     }
     
-    /* ==============================================================
-       APLICA CAIXA BRANCA + BORDA VERDE EM TODOS OS INPUTS
-       ============================================================== */
+    /* INPUTS BRANCOS COM BORDA VERDE */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
     div[data-testid="stDateInput"] input,
     div[data-testid="stSelectbox"] > div > div,
-    div[data-testid="stTextArea"] textarea {
+    div[data-testid="stTextArea"] textarea,
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="select"] > div {
         background-color: #FFFFFF !important;
-        color: #111411 !important;
         border: 2px solid #3A6B52 !important;
         border-radius: 8px !important;
-        font-weight: 600 !important;
         opacity: 1 !important;
     }
     
@@ -55,72 +53,57 @@ st.markdown("""
         border-radius: 8px !important;
     }
 
-    /* FORÇAR TEXTO ESCURO EM CAMPOS DE TEXTO E SELEÇÃO */
+    /* COR GRAFITE ESCURO EM TEXTOS E ÍCONES INTERNOS */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
     div[data-testid="stDateInput"] input,
-    div[data-testid="stTextArea"] textarea {
-        -webkit-text-fill-color: #111411 !important;
-        color: #111411 !important;
-    }
-    
-    /* FORÇAR TEXTO ESCURO E ÍCONE NO SELECTBOX */
+    div[data-testid="stTextArea"] textarea,
     div[data-testid="stSelectbox"] *,
-    div[data-testid="stSelectbox"] span,
-    div[data-testid="stSelectbox"] p {
+    div[data-baseweb="select"] *,
+    div[data-baseweb="input"] * {
         color: #111411 !important;
         -webkit-text-fill-color: #111411 !important;
         font-weight: 600 !important;
     }
-    
-    div[data-testid="stSelectbox"] svg {
+
+    div[data-testid="stSelectbox"] svg,
+    div[data-testid="stDateInput"] svg,
+    div[data-testid="stPasswordInput"] button svg {
         fill: #111411 !important;
         color: #111411 !important;
-    }
-    
-    /* CORREÇÃO DO MENU SUSPENSO QUE ABRE (POPOVER DO SELECTBOX) */
-    ul[role="listbox"] {
-        background-color: #FFFFFF !important;
-        border: 1.5px solid #3A6B52 !important;
-    }
-    
-    ul[role="listbox"] li, 
-    ul[role="listbox"] li * {
-        color: #111411 !important;
-        -webkit-text-fill-color: #111411 !important;
-        font-weight: 500 !important;
     }
 
-    div[data-testid="stPasswordInput"] button,
-    div[data-testid="stDateInput"] svg {
+    ul[role="listbox"],
+    div[data-baseweb="popover"] *,
+    div[data-baseweb="menu"] * {
+        background-color: #FFFFFF !important;
         color: #111411 !important;
-        fill: #111411 !important;
+        -webkit-text-fill-color: #111411 !important;
+        font-weight: 600 !important;
     }
-    
-    /* COMPONENTE DE UPLOAD DE ARQUIVOS */
+
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
         border: 2px dashed #3A6B52 !important;
         border-radius: 8px !important;
-        color: #111411 !important;
     }
     
-    div[data-testid="stFileUploader"] > section svg,
-    div[data-testid="stFileUploader"] > section div {
+    div[data-testid="stFileUploader"] > section * {
         color: #111411 !important;
         fill: #111411 !important;
+        -webkit-text-fill-color: #111411 !important;
     }
     
     div[data-testid="stFileUploader"] > section button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
         border: none !important;
         border-radius: 6px !important;
         font-weight: 600 !important;
     }
 
-    /* Rótulos (Labels) acentuados */
     div[data-testid="stTextInput"] label,
     div[data-testid="stPasswordInput"] label,
     div[data-testid="stNumberInput"] label,
@@ -129,14 +112,15 @@ st.markdown("""
     div[data-testid="stDateInput"] label,
     div[data-testid="stFileUploader"] label {
         color: #F0F5F2 !important;
+        -webkit-text-fill-color: #F0F5F2 !important;
         font-weight: 600 !important;
         font-size: 1rem !important;
     }
     
-    /* Botões Padrões */
     .stButton > button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
@@ -251,7 +235,7 @@ def upload_pdf(file, prefixo):
 
 st.title("🧪 Lab Master - Gestão de Equipamentos")
 
-# 1. DASHBOARD
+# 1. DASHBOARD COM PROGRAMAÇÃO LOGÍSTICA (30, 60, 90 DIAS)
 if menu == "Dashboard & Inventário":
     st.header("📌 Inventário Geral e Status Operacional")
     res = supabase.table("equipamentos").select("*").execute()
@@ -259,35 +243,86 @@ if menu == "Dashboard & Inventário":
     
     if not df.empty:
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total", len(df))
+        col1.metric("Total de Equipamentos", len(df))
         col2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
         col3.metric("Em Calibração", len(df[df["status"] == "Em Calibração"]))
         col4.metric("Manutenção / Interditados", len(df[~df["status"].isin(["Operacional", "Em Calibração"])]))
         
         st.dataframe(df[["tag", "nome", "marca", "modelo", "serial_number", "status", "registrado_por"]], use_container_width=True)
 
-        st.subheader("⚠️ Alertas de Calibração (Vencem em até 30 dias)")
+        st.divider()
+        st.subheader("🗓️ Planejamento Logístico de Envio (Janelas de 30, 60 e 90 dias)")
+        st.caption("Organize o despacho de equipamentos conforme a distância do fornecedor (Local, Estadual ou Internacional).")
+
         calib_res = supabase.table("calibracoes").select("equip_tag, data_venc, registrado_por").execute()
         
         if calib_res.data:
             df_calib = pd.DataFrame(calib_res.data)
             df_calib['data_venc_dt'] = pd.to_datetime(df_calib['data_venc'])
             hoje = pd.Timestamp.now().normalize()
-            df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
-            df_calib['dias'] = (df_calib['data_venc_dt'] - hoje).dt.days
-            vencendo = df_calib[df_calib['dias'] <= 30]
             
-            if not vencendo.empty:
-                for _, row in vencendo.iterrows():
-                    dias = row['dias']
-                    data_str = row['data_venc_dt'].strftime('%d/%m/%Y')
-                    status_venc = "VENCIDO!" if dias < 0 else f"Vence em {dias} dias"
-                    if dias < 0:
-                        st.error(f"🚨 **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
-                    else:
-                        st.warning(f"⚠️ **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
-            else:
-                st.success("✅ Tudo certo! Nenhuma calibração vence nos próximos 30 dias.")
+            # Pega apenas a calibração mais recente por equipamento
+            df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
+            df_calib['dias_restantes'] = (df_calib['data_venc_dt'] - hoje).dt.days
+            
+            # Une com os dados do equipamento
+            df_calib = df_calib.merge(df[['tag', 'nome', 'marca', 'status']], left_on='equip_tag', right_on='tag', how='left')
+            
+            # Divisão em Janelas Logísticas
+            df_30 = df_calib[df_calib['dias_restantes'] <= 30].sort_values('dias_restantes')
+            df_60 = df_calib[(df_calib['dias_restantes'] > 30) & (df_calib['dias_restantes'] <= 60)].sort_values('dias_restantes')
+            df_90 = df_calib[(df_calib['dias_restantes'] > 60) & (df_calib['dias_restantes'] <= 90)].sort_values('dias_restantes')
+
+            # Cartões resumidos
+            m1, m2, m3 = st.columns(3)
+            m1.metric("🚨 Urgente (Até 30 dias)", f"{len(df_30)} eq.", help="Ação Imediata / Fornecedores Locais")
+            m2.metric("⚠️ Médio Prazo (31 a 60 dias)", f"{len(df_60)} eq.", help="Preparar Envio / Fornecedores Estaduais")
+            m3.metric("✈️ Longo Prazo (61 a 90 dias)", f"{len(df_90)} eq.", help="Logística Complexa / Fornecedores Internacionais")
+
+            # Guias de detalhamento
+            tab_30, tab_60, tab_90 = st.tabs([
+                "🔴 Janela 1: Até 30 dias (Fornecedor Local)", 
+                "🟡 Janela 2: 31 a 60 dias (Outros Estados)", 
+                "🔵 Janela 3: 61 a 90 dias (Internacional / Exportação)"
+            ])
+
+            with tab_30:
+                if not df_30.empty:
+                    st.error("⚠️ Equipamentos vencidos ou prestes a vencer neste mês:")
+                    st.dataframe(
+                        df_30[['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']].rename(
+                            columns={'equip_tag': 'TAG', 'nome': 'Nome', 'marca': 'Marca', 'data_venc': 'Vencimento', 'dias_restantes': 'Dias Restantes', 'status': 'Status'}
+                        ),
+                        use_container_width=True
+                    )
+                else:
+                    st.success("✅ Nenhum equipamento vencido ou a vencer nos próximos 30 dias.")
+
+            with tab_60:
+                if not df_60.empty:
+                    st.warning("📦 Programe cotações e frete intermunicipal/interestadual para estes equipamentos:")
+                    st.dataframe(
+                        df_60[['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']].rename(
+                            columns={'equip_tag': 'TAG', 'nome': 'Nome', 'marca': 'Marca', 'data_venc': 'Vencimento', 'dias_restantes': 'Dias Restantes', 'status': 'Status'}
+                        ),
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Nenhum equipamento na janela de 31 a 60 dias.")
+
+            with tab_90:
+                if not df_90.empty:
+                    st.info("✈️ Inicie os trâmites burocráticos, licenças e logística internacional:")
+                    st.dataframe(
+                        df_90[['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']].rename(
+                            columns={'equip_tag': 'TAG', 'nome': 'Nome', 'marca': 'Marca', 'data_venc': 'Vencimento', 'dias_restantes': 'Dias Restantes', 'status': 'Status'}
+                        ),
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Nenhum equipamento na janela de 61 a 90 dias.")
+        else:
+            st.info("Nenhuma calibração cadastrada para gerar previsões.")
     else:
         st.info("Nenhum equipamento cadastrado.")
 

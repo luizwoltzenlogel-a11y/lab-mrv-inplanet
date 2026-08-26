@@ -6,8 +6,8 @@ import hashlib
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
-# URL direta do logo oficial em SVG
-LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ddf1d3d9ccc69884af1cd_Group.svg"
+# URL atualizada do logo oficial em SVG
+LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
 # --- IDENTIDADE VISUAL INSTITUCIONAL DE ALTO CONTRASTE ---
 st.markdown("""
@@ -43,6 +43,7 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
     
+    /* Mantém o logo legível no fundo escuro (inverte para branco/claro) */
     div[data-testid="stImage"] img {
         filter: brightness(0) invert(1);
     }
@@ -56,25 +57,23 @@ st.markdown("""
     }
     
     /* ==============================================================
-       CORREÇÃO DE BORDAS DAS CAIXAS: CLARAS E BEM VISÍVEIS 
+       BORDAS DAS CAIXAS: CLARAS E BEM VISÍVEIS 
        ============================================================== */
     div[data-baseweb="input"] > div,
     div[data-baseweb="select"] > div,
     textarea {
         background-color: var(--inplanet-input-bg) !important;
-        border: 1.5px solid rgba(255, 255, 255, 0.45) !important; /* Borda permanentemente clara */
+        border: 1.5px solid rgba(255, 255, 255, 0.45) !important; 
         border-radius: 8px !important;
         color: #FFFFFF !important;
     }
     
-    /* Mais clara ainda ao passar o mouse */
     div[data-baseweb="input"] > div:hover,
     div[data-baseweb="select"] > div:hover,
     textarea:hover {
         border-color: rgba(255, 255, 255, 0.85) !important; 
     }
     
-    /* Borda Verde brilhante ao clicar/digitar */
     div[data-baseweb="input"]:focus-within > div,
     div[data-baseweb="select"]:focus-within > div,
     textarea:focus {

@@ -13,9 +13,9 @@ from supabase import Client, create_client
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
-TEMPO_INATIVIDADE = 600  # 10 minutos em segundos
+TEMPO_INATIVIDADE = 600
 
-# --- CSS RIGOROSO DE ALTO CONTRASTE (FUNDO BRANCO E LETRAS PRETAS) ---
+# --- CSS RIGOROSO DE ALTO CONTRASTE ---
 st.markdown("""
     <style>
     :root {
@@ -30,8 +30,6 @@ st.markdown("""
         border-radius: 12px !important;
         padding: 2rem !important;
     }
-
-    /* 1. PADRONIZAÇÃO DE CAIXAS: FUNDO BRANCO E BORDA VERDE */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -46,8 +44,6 @@ st.markdown("""
         border-radius: 8px !important;
         opacity: 1 !important;
     }
-
-    /* 2. FORÇAR LETRAS PRETAS ABSOLUTAS EM TODOS OS INPUTS E DROPDOWNS */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -66,25 +62,15 @@ st.markdown("""
         -webkit-text-fill-color: #000000 !important;
         font-weight: 600 !important;
     }
-
-    /* Fundo dos Popovers, Calendários e Listas de Opções */
-    ul[role="listbox"],
-    div[data-baseweb="popover"],
-    div[data-baseweb="menu"],
-    div[data-baseweb="datepicker"],
-    div[data-baseweb="calendar"] {
+    ul[role="listbox"], div[data-baseweb="popover"], div[data-baseweb="menu"],
+    div[data-baseweb="datepicker"], div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
     }
-
-    /* Ícones das Caixas */
-    div[data-testid="stSelectbox"] svg,
-    div[data-testid="stDateInput"] svg,
+    div[data-testid="stSelectbox"] svg, div[data-testid="stDateInput"] svg,
     div[data-testid="stPasswordInput"] button svg {
         fill: #000000 !important;
         color: #000000 !important;
     }
-
-    /* Upload de Arquivos */
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
         border: 2px dashed var(--inplanet-green) !important;
@@ -104,8 +90,6 @@ st.markdown("""
         font-weight: 600 !important;
     }
     .stButton > button:hover { background-color: #487F63 !important; }
-
-    /* Rótulos dos Campos (Labels Fora das Caixas) */
     div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
     div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
     div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
@@ -117,7 +101,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- CONEXÃO E FUNÇÕES AUXILIARES ---
 @st.cache_resource
 def init_connection():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -141,7 +124,6 @@ def obter_lista_gestores():
 def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
     smtp_cfg = st.secrets.get("smtp")
     if not smtp_cfg:
-        st.warning("⚠️ Configuração SMTP não encontrada nos Secrets.")
         return
     try:
         msg = MIMEMultipart()
@@ -149,12 +131,10 @@ def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
         msg["To"] = destinatario
         msg["Subject"] = assunto
         msg.attach(MIMEText(mensagem_corpo, "plain"))
-
         with smtplib.SMTP(smtp_cfg["server"], int(smtp_cfg["port"])) as server:
             server.starttls()
             server.login(smtp_cfg["user"], smtp_cfg["password"])
             server.send_message(msg)
-        st.info(f"📧 Notificação enviada para: {destinatario}")
     except Exception as e:
         st.error(f"Erro ao enviar e-mail: {e}")
 
@@ -249,7 +229,7 @@ if st.sidebar.button("🚪 Sair do Sistema"):
 
 st.sidebar.divider()
 
-menus_disponiveis = ["Dashboard & Inventário", "Prontuário & Tendências"]
+menus_disponiveis = ["Dashboard & Inventário", "🛡️ Modo Auditoria (ISO 17025)", "Prontuário & Tendências"]
 if st.session_state["user_perfil"] in ["Admin", "Tecnico"]:
     menus_disponiveis.extend(["Gerenciar Equipamentos", "Calibrações & Qualificações", "Manutenções & Intervenções"])
 if st.session_state["user_perfil"] == "Admin":
@@ -307,7 +287,50 @@ if menu == "Dashboard & Inventário":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. PRONTUÁRIO & TENDÊNCIAS (RESTAURADO COMPLETO)
+# 2. MODO AUDITORIA (VISÃO CONSOLIDADA DE CONFORMIDADE)
+elif menu == "🛡️ Modo Auditoria (ISO 17025)":
+    st.header("🛡️ Visão de Conformidade Metrológica - Auditoria")
+    st.caption("Relatório executivo consolidado com o status atual dos equipamentos e acesso à documentação vigente.")
+    
+    res_eq = supabase.table("equipamentos").select("*").execute()
+    df_eq = pd.DataFrame(res_eq.data or [])
+    
+    if not df_eq.empty:
+        res_c = supabase.table("calibracoes").select("*").execute()
+        df_c = pd.DataFrame(res_c.data or [])
+        
+        if not df_c.empty:
+            df_c['data_venc_dt'] = pd.to_datetime(df_c['data_venc'])
+            # Pega apenas a ÚLTIMA calibração realizada por equipamento
+            df_c_ult = df_c.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
+            
+            df_auditoria = df_eq.merge(df_c_ult, left_on='tag', right_on='equip_tag', how='left')
+            
+            # Formatação executiva para a auditoria
+            df_auditoria['Aptidão Metrológica'] = df_auditoria['resultado'].apply(
+                lambda x: "✅ Aprovado / Conforme" if x == "Aprovado" else ("❌ Reprovado" if x == "Reprovado" else "⏳ Pendente")
+            )
+            
+            col_audit = ["tag", "nome", "marca", "modelo", "serial_number", "status", "Aptidão Metrológica", "data_calib", "data_venc", "certificado", "pdf_url"]
+            cols_exist = [c for c in col_audit if c in df_auditoria.columns]
+            
+            df_final = df_auditoria[cols_exist].rename(columns={
+                'tag': 'TAG', 'nome': 'Equipamento', 'marca': 'Marca', 'modelo': 'Modelo',
+                'serial_number': 'Nº Série', 'status': 'Status Atual', 'data_calib': 'Última Calibração',
+                'data_venc': 'Vencimento', 'certificado': 'Certificado nº', 'pdf_url': 'Documento'
+            })
+            
+            st.dataframe(
+                df_final, 
+                column_config={"Documento": st.column_config.LinkColumn("Certificado PDF")}, 
+                use_container_width=True
+            )
+        else:
+            st.info("Nenhuma calibração cadastrada no sistema.")
+    else:
+        st.info("Nenhum equipamento cadastrado.")
+
+# 3. PRONTUÁRIO & TENDÊNCIAS
 elif menu == "Prontuário & Tendências":
     st.header("📈 Prontuário do Equipamento e Análise de Tendências")
     eq_res = supabase.table("equipamentos").select("tag, nome").execute()
@@ -372,7 +395,7 @@ elif menu == "Prontuário & Tendências":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 3. GERENCIAR EQUIPAMENTOS
+# 4. GERENCIAR EQUIPAMENTOS
 elif menu == "Gerenciar Equipamentos":
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     df_eq_exist = pd.DataFrame(supabase.table("equipamentos").select("*").execute().data or [])
@@ -437,7 +460,7 @@ elif menu == "Gerenciar Equipamentos":
                     st.success("Excluído!")
                     st.rerun()
 
-# 4. CALIBRAÇÕES
+# 5. CALIBRAÇÕES
 elif menu == "Calibrações & Qualificações":
     st.header("📐 Registro de Calibração")
     eq_res = supabase.table("equipamentos").select("tag").execute()
@@ -470,7 +493,7 @@ elif menu == "Calibrações & Qualificações":
                 st.success(f"Calibração registrada! Status atualizado para '{novo_status}'.")
                 st.rerun()
 
-# 5. MANUTENÇÕES
+# 6. MANUTENÇÕES
 elif menu == "Manutenções & Intervenções":
     st.header("🛠️ Registro de Manutenção")
     eq_res = supabase.table("equipamentos").select("tag").execute()
@@ -502,7 +525,7 @@ elif menu == "Manutenções & Intervenções":
                 st.success("Manutenção registrada com sucesso!")
                 st.rerun()
 
-# 6. GESTÃO DE ACESSOS & ALERTAS
+# 7. GESTÃO DE ACESSOS & ALERTAS
 elif menu == "Gestão de Acessos":
     st.header("👥 Gestão de Usuários e Destinatários de Alertas")
     tab_users, tab_alertas = st.tabs(["👤 Controle de Usuários", "📩 Destinatários de Alertas"])

@@ -6,18 +6,16 @@ import hashlib
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
-# URL do logo oficial em SVG
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# --- CSS CUSTOMIZADO (CENTRALIZAÇÃO PERFEITA E BORDAS CLARAS) ---
+# --- CSS COM CAIXAS DE ENTRADA CLARAS E BORDAS DE ALTO CONTRASTE ---
 st.markdown("""
     <style>
     :root {
         --inplanet-dark: #121512;
         --inplanet-card: #1A201B;
-        --inplanet-input-bg: #222A24;
-        --inplanet-border-light: #7A9A87;
         --inplanet-green: #3A6B52;
+        --inplanet-green-hover: #487F63;
         --inplanet-text: #F0F5F2;
     }
     
@@ -39,49 +37,67 @@ st.markdown("""
     /* Card de Formulários e Login */
     .stForm {
         background-color: var(--inplanet-card);
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 12px;
         padding: 2rem;
     }
     
-    /* BORDAS CLARAS E DESTACADAS EM TODOS OS CAMPOS */
+    /* ==============================================================
+       CAIXAS DE DIGITAÇÃO: FUNDO BRANCO, TEXTO ESCURO E BORDAS VISÍVEIS 
+       ============================================================== */
     div[data-baseweb="input"],
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="base-input"],
     div[data-baseweb="select"] > div,
     textarea {
-        background-color: var(--inplanet-input-bg) !important;
-        border: 2px solid var(--inplanet-border-light) !important;
+        background-color: #FFFFFF !important;
+        border: 2px solid var(--inplanet-green) !important;
         border-radius: 8px !important;
     }
     
-    /* Cor do texto interno e ícones */
+    /* Força o texto digitado e ícones para cor escura e alta legibilidade */
     div[data-baseweb="input"] input,
-    textarea {
-        color: #FFFFFF !important;
+    div[data-baseweb="base-input"] input,
+    textarea,
+    div[data-baseweb="select"] span {
+        color: #111411 !important;
+        -webkit-text-fill-color: #111411 !important;
+        font-weight: 500 !important;
     }
     
-    /* Destaque quando selecionado */
+    /* Cor do texto de dica (placeholder) */
+    div[data-baseweb="input"] input::placeholder,
+    textarea::placeholder {
+        color: #666666 !important;
+        -webkit-text-fill-color: #666666 !important;
+    }
+    
+    /* Destaque ao clicar/focar na caixa */
     div[data-baseweb="input"]:focus-within,
     div[data-baseweb="select"]:focus-within > div {
-        border-color: #9EE0B5 !important;
-        box-shadow: 0 0 0 3px rgba(158, 224, 181, 0.25) !important;
+        border-color: #82C99B !important;
+        box-shadow: 0 0 0 3px rgba(130, 201, 155, 0.4) !important;
     }
     
+    /* Rótulos dos campos */
     .stTextInput label, .stSelectbox label, .stTextArea label, .stDateInput label {
-        color: #E0EAE3 !important;
-        font-weight: 500 !important;
+        color: #F0F5F2 !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
     }
     
     /* Botões */
     .stButton > button {
         background-color: var(--inplanet-green) !important;
         color: #ffffff !important;
-        border: 1px solid #5A8C70 !important;
+        border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
+        padding: 0.6rem 1rem !important;
     }
     
     .stButton > button:hover {
-        background-color: #487F63 !important;
+        background-color: var(--inplanet-green-hover) !important;
     }
     
     /* Métricas */
@@ -113,7 +129,6 @@ if "autenticado" not in st.session_state:
 if not st.session_state["autenticado"]:
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
-        # LOGO HTML CENTRALIZADO (SEM CORTES E ALINHADO COM A CAIXA)
         st.markdown(f"""
             <div style="text-align: center; width: 100%; margin-bottom: 1.2rem;">
                 <img src="{LOGO_URL}" style="width: 220px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />

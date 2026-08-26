@@ -15,7 +15,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 TEMPO_INATIVIDADE = 600
 
-# --- CSS RIGOROSO DE ALTO CONTRASTE ---
+# --- CSS RIGOROSO E COMPLETO PARA TODOS OS ELEMENTOS DO FORMULÁRIO ---
 st.markdown("""
     <style>
     :root {
@@ -30,12 +30,17 @@ st.markdown("""
         border-radius: 12px !important;
         padding: 2rem !important;
     }
+
+    /* 1. FORÇAR FUNDO BRANCO E BORDA VERDE EM TODOS OS INPUTS (INCLUINDO DATA) */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
     div[data-testid="stDateInput"] input,
+    div[data-testid="stDateInput"] > div,
+    div[data-testid="stDateInput"] div[data-baseweb="input"],
     div[data-testid="stSelectbox"] > div > div,
     div[data-testid="stTextArea"] textarea,
+    div[data-baseweb="input"],
     div[data-baseweb="input"] > div,
     div[data-baseweb="select"] > div,
     div[data-baseweb="base-input"] {
@@ -44,6 +49,8 @@ st.markdown("""
         border-radius: 8px !important;
         opacity: 1 !important;
     }
+
+    /* 2. FORÇAR TEXTO E ÍCONES PRETO ABSOLUTO EM CAMPOS DE DATA E SELEÇÃO */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -62,37 +69,70 @@ st.markdown("""
         -webkit-text-fill-color: #000000 !important;
         font-weight: 600 !important;
     }
-    ul[role="listbox"], div[data-baseweb="popover"], div[data-baseweb="menu"],
-    div[data-baseweb="datepicker"], div[data-baseweb="calendar"] {
+
+    /* Fundo dos Calendários e Popovers */
+    ul[role="listbox"],
+    div[data-baseweb="popover"],
+    div[data-baseweb="menu"],
+    div[data-baseweb="datepicker"],
+    div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
     }
-    div[data-testid="stSelectbox"] svg, div[data-testid="stDateInput"] svg,
+
+    div[data-testid="stSelectbox"] svg,
+    div[data-testid="stDateInput"] svg,
     div[data-testid="stPasswordInput"] button svg {
         fill: #000000 !important;
         color: #000000 !important;
     }
+
+    /* 3. ESTILIZAÇÃO DO COMPONENTE DE UPLOAD DE ARQUIVOS */
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
         border: 2px dashed var(--inplanet-green) !important;
         border-radius: 8px !important;
     }
-    div[data-testid="stFileUploader"] > section * {
+    div[data-testid="stFileUploader"] section div,
+    div[data-testid="stFileUploader"] section span {
         color: #000000 !important;
-        fill: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
     }
-    div[data-testid="stFileUploader"] > section button, .stButton > button {
+    div[data-testid="stFileUploader"] section button {
+        background-color: var(--inplanet-green) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 6px !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stFileUploader"] section button * {
+        color: #FFFFFF !important;
+        fill: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+    }
+
+    /* 4. BOTÕES DE SUBMIT DOS FORMULÁRIOS (DESTACADOS EM VERDE) */
+    .stButton > button,
+    div[data-testid="stFormSubmitButton"] > button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
         -webkit-text-fill-color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
+        padding: 0.6rem 1rem !important;
     }
-    .stButton > button:hover { background-color: #487F63 !important; }
-    div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
-    div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
-    div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
+    .stButton > button:hover,
+    div[data-testid="stFormSubmitButton"] > button:hover {
+        background-color: #487F63 !important;
+    }
+
+    /* Rótulos dos Campos (Labels) */
+    div[data-testid="stTextInput"] label,
+    div[data-testid="stPasswordInput"] label,
+    div[data-testid="stNumberInput"] label,
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stTextArea"] label,
+    div[data-testid="stDateInput"] label,
     div[data-testid="stFileUploader"] label {
         color: #F0F5F2 !important;
         -webkit-text-fill-color: #F0F5F2 !important;
@@ -101,6 +141,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- CONEXÃO E FUNÇÕES AUXILIARES ---
 @st.cache_resource
 def init_connection():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -131,10 +172,12 @@ def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
         msg["To"] = destinatario
         msg["Subject"] = assunto
         msg.attach(MIMEText(mensagem_corpo, "plain"))
+
         with smtplib.SMTP(smtp_cfg["server"], int(smtp_cfg["port"])) as server:
             server.starttls()
             server.login(smtp_cfg["user"], smtp_cfg["password"])
             server.send_message(msg)
+        st.info(f"📧 Notificação enviada para: {destinatario}")
     except Exception as e:
         st.error(f"Erro ao enviar e-mail: {e}")
 
@@ -287,7 +330,7 @@ if menu == "Dashboard & Inventário":
     else:
         st.info("Nenhum equipamento cadastrado.")
 
-# 2. MODO AUDITORIA (VISÃO CONSOLIDADA DE CONFORMIDADE)
+# 2. MODO AUDITORIA (ISO 17025)
 elif menu == "🛡️ Modo Auditoria (ISO 17025)":
     st.header("🛡️ Visão de Conformidade Metrológica - Auditoria")
     st.caption("Relatório executivo consolidado com o status atual dos equipamentos e acesso à documentação vigente.")
@@ -301,12 +344,9 @@ elif menu == "🛡️ Modo Auditoria (ISO 17025)":
         
         if not df_c.empty:
             df_c['data_venc_dt'] = pd.to_datetime(df_c['data_venc'])
-            # Pega apenas a ÚLTIMA calibração realizada por equipamento
             df_c_ult = df_c.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
-            
             df_auditoria = df_eq.merge(df_c_ult, left_on='tag', right_on='equip_tag', how='left')
             
-            # Formatação executiva para a auditoria
             df_auditoria['Aptidão Metrológica'] = df_auditoria['resultado'].apply(
                 lambda x: "✅ Aprovado / Conforme" if x == "Aprovado" else ("❌ Reprovado" if x == "Reprovado" else "⏳ Pendente")
             )

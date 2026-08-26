@@ -61,7 +61,8 @@ if menu == "Dashboard & Inventário":
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Equipamentos", len(df))
         col2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
-        col3.metric("Interditados / Manutenção", len(df[df["status"]] != "Operacional"]))
+        # LINHA 64 CORRIGIDA AQUI 👇
+        col3.metric("Interditados / Manutenção", len(df[df["status"] != "Operacional"]))
         
         st.dataframe(df[["tag", "nome", "marca", "modelo", "serial_number", "status", "registrado_por"]], use_container_width=True)
 

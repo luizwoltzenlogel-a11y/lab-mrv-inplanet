@@ -2,9 +2,8 @@ name: Disparo Diario de Alertas Lab Master
 
 on:
   schedule:
-    # Executa todos os dias às 10:00 UTC (07:00 horário de Brasília)
     - cron: '0 10 * * *'
-  workflow_dispatch: # Permite disparar manualmente pelo GitHub se desejar
+  workflow_dispatch:
 
 jobs:
   enviar-alertas:
@@ -28,6 +27,6 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          SMTP_SERVER: "smtp.gmail.com" # Ou smtp.office365.com se usarem Outlook
+          SMTP_SERVER: "smtp.gmail.com"
           SMTP_PORT: "587"
         run: python send_alerts.py

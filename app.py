@@ -1,5 +1,7 @@
 import streamlit as st
+import pandas as pd
 from supabase import create_client, Client
+from datetime import datetime
 
 st.set_page_config(page_title="Lab Master - InPlanet", layout="wide")
 
@@ -9,36 +11,139 @@ def init_connection():
     key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
 
-try:
-    supabase: Client = init_connection()
-except Exception as e:
-    st.error("Erro na conexão com o banco de dados. Verifique os Segredos (Secrets).")
-    st.stop()
+supabase: Client = init_connection()
 
-st.title("🧪 Lab Master - InPlanet")
-st.success("✅ Conexão com o Supabase estabelecida com sucesso!")
+# --- TRAVA DE SEGURANÇA E LOGIN CORPORATIVO ---
+st.sidebar.title("🔐 Acesso Corporativo")
+if "user_email" not in st.session_state:
+    st.session_state["user_email"] = ""
 
-with st.form("form_teste", clear_on_submit=True):
-    st.subheader("Cadastro / Atualização de Equipamento")
-    tag = st.text_input("Tag do Equipamento (Ex: EQ-ICP-01)")
-    nome = st.text_input("Nome (Ex: Espectrômetro ICP-OES)")
-    submit = st.form_submit_button("Salvar no Banco Nuvem")
-    
-    if submit:
-        if tag and nome:
-            novo_dado = {"tag": tag, "nome": nome, "status": "Operacional", "registrado_por": "teste@inplanet.earth"}
-            try:
-                # upsert grava um novo ou atualiza se a TAG já existir
-                supabase.table("equipamentos").upsert(novo_dado, on_conflict="tag").execute()
-                st.success(f"Equipamento {tag} gravado com sucesso!")
-            except Exception as e:
-                st.error("Erro ao salvar no banco. Verifique se a TAG é válida.")
-        else:
-            st.warning("Preencha a Tag e o Nome.")
+user_email = st.sidebar.text_input("E-mail institucional:", value=st.session_state["user_email"], placeholder="seu.nome@inplanet.earth")
 
-st.subheader("Equipamentos Registrados")
-res = supabase.table("equipamentos").select("*").execute()
-if res.data:
-    st.dataframe(res.data, use_container_width=True)
+if user_email:
+    if not user_email.endswith("@inplanet.earth"):
+        st.sidebar.error("❌ Acesso restrito a e-mails @inplanet.earth")
+        st.stop()
+    else:
+        st.session_state["user_email"] = user_email
+        st.sidebar.success(f"Autenticado: {user_email}")
 else:
-    st.info("Nenhum equipamento cadastrado até o momento.")
+    st.info("👋 Informe seu e-mail corporativo na barra lateral para liberar as funcionalidades de escrita.")
+
+# --- NAVEGAÇÃO ---
+st.title("🧪 Lab Master - Gestão de Equipamentos (ISO 17025)")
+menu = st.sidebar.radio("Módulos", ["Dashboard & Inventário", "Cadastrar Equipamento", "Calibrações & Qualificações", "Manutenções & Intervenções"])
+
+# 1. DASHBOARD
+if menu == "Dashboard & Inventário":
+    st.header("📌 Inventário Geral e Status Operacional")
+    res = supabase.table("equipamentos").select("*").execute()
+    df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+    
+    if not df.empty:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total de Equipamentos", len(df))
+        col2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
+        col3.metric("Interditados / Manutenção", len(df[df["status"] != "Operacional"]))
+        
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("Nenhum equipamento cadastrado.")
+
+# 2. CADASTRO DE EQUIPAMENTO
+elif menu == "Cadastrar Equipamento":
+    st.header("📝 Cadastro / Edição de Equipamento (Req. 6.4.13)")
+    with st.form("form_equip", clear_on_submit=True):
+        tag = st.text_input("Tag / Código Interno (Ex: EQ-ICP-01)")
+        nome = st.text_input("Nome do Equipamento")
+        status = st.selectbox("Status Operacional", ["Operacional", "Em Manutenção", "Interditado / Fora de Uso"])
+        
+        if st.form_submit_button("Salvar Equipamento"):
+            if user_email and tag and nome:
+                dado = {"tag": tag, "nome": nome, "status": status, "registrado_por": user_email}
+                supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
+                st.success(f"Equipamento {tag} salvo com rastreabilidade!")
+                st.rerun()
+            else:
+                st.error("Informe seu e-mail corporativo e preencha todos os campos.")
+
+# 3. CALIBRAÇÕES
+elif menu == "Calibrações & Qualificações":
+    st.header("📐 Registro de Calibração / Qualificação (Req. 6.4.6)")
+    eq_res = supabase.table("equipamentos").select("tag, nome").execute()
+    tags = [item["tag"] for item in eq_res.data] if eq_res.data else []
+    
+    if tags:
+        with st.form("form_calib", clear_on_submit=True):
+            equip_tag = st.selectbox("Selecione o Equipamento", tags)
+            data_calib = st.date_input("Data da Calibração")
+            data_venc = st.date_input("Data do Próximo Vencimento")
+            resultado = st.selectbox("Avaliação Metrológica", ["Aprovado", "Reprovado"])
+            certificado = st.text_input("Número do Certificado / Laudo")
+            
+            if st.form_submit_button("Registrar Calibração"):
+                if user_email:
+                    dado = {
+                        "equip_tag": equip_tag,
+                        "data_calib": str(data_calib),
+                        "data_venc": str(data_venc),
+                        "resultado": resultado,
+                        "certificado": certificado,
+                        "registrado_por": user_email
+                    }
+                    supabase.table("calibracoes").insert(dado).execute()
+                    
+                    if resultado == "Reprovado":
+                        supabase.table("equipamentos").update({"status": "Interditado / Fora de Uso"}).eq("tag", equip_tag).execute()
+                        st.warning(f"Equipamento {equip_tag} interditado automaticamente por reprovação!")
+                    else:
+                        st.success("Calibração registrada com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Insira o e-mail corporativo.")
+        
+        st.subheader("Histórico de Calibrações")
+        calib_res = supabase.table("calibracoes").select("*").execute()
+        if calib_res.data:
+            st.dataframe(pd.DataFrame(calib_res.data), use_container_width=True)
+    else:
+        st.info("Cadastre um equipamento antes de registrar calibrações.")
+
+# 4. MANUTENÇÕES
+elif menu == "Manutenções & Intervenções":
+    st.header("🛠️ Registro de Manutenção (Req. 6.4.9)")
+    eq_res = supabase.table("equipamentos").select("tag, nome").execute()
+    tags = [item["tag"] for item in eq_res.data] if eq_res.data else []
+    
+    if tags:
+        with st.form("form_manut", clear_on_submit=True):
+            equip_tag = st.selectbox("Selecione o Equipamento", tags)
+            tipo = st.selectbox("Tipo de Intervenção", ["Preventiva", "Corretiva", "Ajuste / Qualificação"])
+            data_intervencao = st.date_input("Data da Intervenção")
+            tecnico = st.text_input("Técnico / Empresa Responsável")
+            descricao = st.text_area("Descrição dos Serviços Realizados")
+            status_pos = st.selectbox("Status do Equipamento Pós-Manutenção", ["Operacional", "Em Manutenção", "Interditado / Aguardando Calibração"])
+            
+            if st.form_submit_button("Registrar Manutenção"):
+                if user_email:
+                    dado = {
+                        "equip_tag": equip_tag,
+                        "tipo": tipo,
+                        "data_intervencao": str(data_intervencao),
+                        "tecnico": tecnico,
+                        "descricao": descricao,
+                        "registrado_por": user_email
+                    }
+                    supabase.table("manutencoes").insert(dado).execute()
+                    supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
+                    st.success("Registro de manutenção atualizado!")
+                    st.rerun()
+                else:
+                    st.error("Insira o e-mail corporativo.")
+                    
+        st.subheader("Histórico de Intervenções")
+        manut_res = supabase.table("manutencoes").select("*").execute()
+        if manut_res.data:
+            st.dataframe(pd.DataFrame(manut_res.data), use_container_width=True)
+    else:
+        st.info("Cadastre um equipamento primeiro.")

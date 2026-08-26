@@ -7,7 +7,7 @@ import os
 
 st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
-# --- IDENTIDADE VISUAL INSTITUCIONAL COM ALTO CONTRASTE ---
+# --- IDENTIDADE VISUAL INSTITUCIONAL COM ALTO CONTRASTE E CENTRALIZAÇÃO ---
 st.markdown("""
     <style>
     :root {
@@ -26,7 +26,7 @@ st.markdown("""
     }
     
     .block-container {
-        padding-top: 1.5rem;
+        padding-top: 2rem;
         padding-bottom: 2rem;
     }
     
@@ -35,11 +35,16 @@ st.markdown("""
         border-right: 1px solid rgba(255, 255, 255, 0.08);
     }
     
-    [data-testid="stSidebarHeader"] img, [data-testid="stSidebar"] img {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-        padding: 0.5rem 0;
+    /* Centralização perfeita das imagens (Logo) */
+    div[data-testid="stImage"] {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    div[data-testid="stImage"] img {
+        border-radius: 6px;
     }
     
     /* Card dos Formulários */
@@ -50,7 +55,7 @@ st.markdown("""
         padding: 1.8rem;
     }
     
-    /* CONTRASTE E BORDAS VISÍVEIS NOS CAMPOS (INPUTS E SELECTBOX) */
+    /* CONTRASTE E BORDAS VISÍVEIS NOS CAMPOS */
     div[data-baseweb="input"] > div,
     div[data-baseweb="select"] > div,
     textarea {
@@ -60,14 +65,12 @@ st.markdown("""
         color: #FFFFFF !important;
     }
     
-    /* Destaque ao passar o mouse */
     div[data-baseweb="input"] > div:hover,
     div[data-baseweb="select"] > div:hover,
     textarea:hover {
         border-color: var(--inplanet-border-hover) !important;
     }
     
-    /* Destaque quando o campo está selecionado/focado */
     div[data-baseweb="input"]:focus-within > div,
     div[data-baseweb="select"]:focus-within > div,
     textarea:focus {
@@ -75,7 +78,6 @@ st.markdown("""
         box-shadow: 0 0 0 2px rgba(130, 201, 155, 0.25) !important;
     }
     
-    /* Rótulos e Texto de Entrada */
     .stTextInput label, .stSelectbox label, .stTextArea label, .stDateInput label {
         color: #E0EAE3 !important;
         font-weight: 500 !important;
@@ -132,14 +134,12 @@ if "autenticado" not in st.session_state:
     st.session_state["user_perfil"] = ""
 
 if not st.session_state["autenticado"]:
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
         if LOGO_PATH:
-            c1, c2, c3 = st.columns([1, 2, 1])
-            with c2:
-                st.image(LOGO_PATH, width=200)
+            st.image(LOGO_PATH, width=220)
             
-        st.markdown("<h2 style='text-align: center; font-weight: 600;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; font-weight: 600; margin-top: -10px;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #9AABA0;'>Acesso Restrito - InPlanet Lab Management System</p>", unsafe_allow_html=True)
         
         with st.form("login_form"):
@@ -165,7 +165,7 @@ if not st.session_state["autenticado"]:
 
 # --- BARRA LATERAL ---
 if LOGO_PATH:
-    st.sidebar.image(LOGO_PATH, width=180)
+    st.sidebar.image(LOGO_PATH, width=160)
     st.sidebar.divider()
 
 st.sidebar.title("👤 Meu Perfil")

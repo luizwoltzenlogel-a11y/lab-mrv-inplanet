@@ -5,6 +5,7 @@ from datetime import datetime
 import hashlib
 import os
 import smtplib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -147,18 +148,54 @@ supabase: Client = init_connection()
 def hash_senha(senha_plana):
     return hashlib.sha256(senha_plana.encode()).hexdigest()
 
-# --- BUSCA DINÂMICA DE GESTORES DO BANCO DE DADOS ---
+# --- REGRAS DE PERSISTÊNCIA DE SESSÃO NO F5 E TIMEOUT DE 10 MINUTOS ---
+TEMPO_LIMITE_INATIVIDADE = 600  # 10 minutos em segundos
+
+agora = time.time()
+
+# 1. Recupera sessão via Query Parameters ao dar F5
+if "session_user" in st.query_params and "session_perfil" in st.query_params:
+    st.session_state["autenticado"] = True
+    st.session_state["user_email"] = st.query_params["session_user"]
+    st.session_state["user_perfil"] = st.query_params["session_perfil"]
+
+# 2. Valida inatividade (Servidor)
+if st.session_state.get("autenticado", False):
+    if "ultima_atividade" in st.session_state:
+        tempo_decorrido = agora - st.session_state["ultima_atividade"]
+        if tempo_decorrido > TEMPO_LIMITE_INATIVIDADE:
+            st.session_state.clear()
+            st.query_params.clear()
+            st.warning("⚠️ Sua sessão expirou após 10 minutos de inatividade. Faça login novamente.")
+            st.rerun()
+    st.session_state["ultima_atividade"] = agora
+
+    # Temporizador Client-Side (JS) para forçar reload/logout se ficar inativo na tela
+    st.components.v1.html("""
+        <script>
+        var timerInatividade = new Date().getTime();
+        const resetarTimer = () => { timerInatividade = new Date().getTime(); };
+        window.addEventListener('mousemove', resetarTimer);
+        window.addEventListener('keypress', resetarTimer);
+        window.addEventListener('click', resetarTimer);
+        window.addEventListener('scroll', resetarTimer);
+        
+        setInterval(() => {
+            if (new Date().getTime() - timerInatividade >= 600000) { // 10 minutos
+                window.location.reload();
+            }
+        }, 15000);
+        </script>
+    """, height=0, width=0)
+
+# --- BUSCA DINÂMICA DE GESTORES ---
 def obter_lista_gestores():
     try:
-        # Tenta buscar destinatários ativos cadastrados
         res = supabase.table("destinatarios_alertas").select("email").eq("ativo", True).execute()
         emails = [r["email"] for r in res.data] if res.data else []
-        
-        # Se não houver, busca e-mails com perfil Admin
         if not emails:
             res_users = supabase.table("usuarios").select("email").eq("perfil", "Admin").execute()
             emails = [r["email"] for r in res_users.data] if res_users.data else []
-            
         return emails if emails else ["suporte@inplanet.earth"]
     except Exception:
         return ["suporte@inplanet.earth"]
@@ -189,19 +226,16 @@ def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
     except Exception as e:
         st.error(f"Erro ao enviar e-mail de alerta: {e}")
 
-# --- GESTÃO DE SESSÃO E LOGIN ---
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
-    st.session_state["user_email"] = ""
-    st.session_state["user_perfil"] = ""
-
-# TELA DE LOGIN
-if not st.session_state["autenticado"]:
+# --- TELA DE LOGIN ---
+if not st.session_state.get("autenticado", False):
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
+        # LOGO CLICÁVEL QUE REDIRECIONA À TELA INICIAL
         st.markdown(f"""
             <div style="text-align: center; width: 100%; margin-bottom: 1.2rem;">
-                <img src="{LOGO_URL}" style="width: 220px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
+                <a href="/" target="_self" title="InPlanet Lab Master">
+                    <img src="{LOGO_URL}" style="width: 220px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
+                </a>
             </div>
         """, unsafe_allow_html=True)
         
@@ -222,6 +256,11 @@ if not st.session_state["autenticado"]:
                         st.session_state["autenticado"] = True
                         st.session_state["user_email"] = res.data[0]["email"]
                         st.session_state["user_perfil"] = res.data[0]["perfil"]
+                        st.session_state["ultima_atividade"] = time.time()
+                        
+                        # Salva parâmetros para manter logado no F5
+                        st.query_params["session_user"] = res.data[0]["email"]
+                        st.query_params["session_perfil"] = res.data[0]["perfil"]
                         st.rerun()
                     else:
                         st.error("❌ E-mail ou senha incorretos.")
@@ -230,9 +269,12 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- BARRA LATERAL ---
+# LOGO DA LATERAL COMO LINK DIRETO PARA O DASHBOARD (TELA INICIAL)
 st.sidebar.markdown(f"""
     <div style="text-align: center; width: 100%; margin-bottom: 1rem;">
-        <img src="{LOGO_URL}" style="width: 150px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
+        <a href="/" target="_self" title="Voltar para a Tela Inicial">
+            <img src="{LOGO_URL}" style="width: 150px; height: auto; filter: brightness(0) invert(1); display: inline-block;" />
+        </a>
     </div>
 """, unsafe_allow_html=True)
 
@@ -249,6 +291,7 @@ st.sidebar.write(f"**Permissão:** {st.session_state['user_perfil']}")
 
 if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.clear()
+    st.query_params.clear()
     st.rerun()
 
 st.sidebar.divider()
@@ -259,7 +302,8 @@ if st.session_state["user_perfil"] in ["Admin", "Tecnico"]:
 if st.session_state["user_perfil"] == "Admin":
     menus_disponiveis.append("Gestão de Acessos")
 
-menu = st.sidebar.radio("Navegação", menus_disponiveis)
+# Ao recarregar via F5 ou clicar no Logo, o índice 0 ("Dashboard & Inventário") é selecionado automaticamente
+menu = st.sidebar.radio("Navegação", menus_disponiveis, index=0)
 user_email = st.session_state["user_email"]
 
 def upload_pdf(file, prefixo):
@@ -277,7 +321,7 @@ def upload_pdf(file, prefixo):
 
 st.title("🧪 Lab Master - Gestão de Equipamentos")
 
-# 1. DASHBOARD
+# 1. DASHBOARD & INVENTÁRIO
 if menu == "Dashboard & Inventário":
     st.header("📌 Inventário Geral e Status Operacional")
     res = supabase.table("equipamentos").select("*").execute()
@@ -425,7 +469,7 @@ elif menu == "Gerenciar Equipamentos":
                     st.success(f"Equipamento {tag} gravado!")
                     st.rerun()
 
-# 4. CALIBRAÇÕES (SELEÇÃO OBRIGATÓRIA DE GESTOR PARA ALERTAS)
+# 4. CALIBRAÇÕES
 elif menu == "Calibrações & Qualificações":
     st.header("📐 Registro de Calibração")
     eq_res = supabase.table("equipamentos").select("tag").execute()
@@ -454,7 +498,6 @@ elif menu == "Calibrações & Qualificações":
                 novo_status = "Operacional" if resultado == "Aprovado" else "Interditado / Fora de Uso"
                 supabase.table("equipamentos").update({"status": novo_status}).eq("tag", equip_tag).execute()
                 
-                # Se reprovado, envia e-mail diretamente ao Gestor selecionado
                 if resultado == "Reprovado":
                     enviar_notificacao_email(
                         destinatario=gestor_notificar,
@@ -465,7 +508,7 @@ elif menu == "Calibrações & Qualificações":
                 st.success(f"Calibração registrada! Status atualizado para '{novo_status}'.")
                 st.rerun()
 
-# 5. MANUTENÇÕES (SELEÇÃO OBRIGATÓRIA DE GESTOR PARA ALERTAS)
+# 5. MANUTENÇÕES
 elif menu == "Manutenções & Intervenções":
     st.header("🛠️ Registro de Manutenção")
     eq_res = supabase.table("equipamentos").select("tag").execute()
@@ -493,7 +536,6 @@ elif menu == "Manutenções & Intervenções":
                 supabase.table("manutencoes").insert(dado).execute()
                 supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
                 
-                # Regra 1: Manutenção Corretiva ou Equipamento Inoperante -> Notifica o Gestor Selecionado
                 if tipo == "Corretiva" or status_pos in ["Interditado / Fora de Uso", "Em Manutenção"]:
                     enviar_notificacao_email(
                         destinatario=gestor_notificar,
@@ -504,7 +546,7 @@ elif menu == "Manutenções & Intervenções":
                 st.success("Manutenção registrada e e-mail de alerta enviado ao Gestor selecionado!")
                 st.rerun()
 
-# 6. GESTÃO DE ACESSOS & ALERTAS (Apenas Admin)
+# 6. GESTÃO DE ACESSOS & ALERTAS
 elif menu == "Gestão de Acessos":
     st.header("👥 Gestão de Usuários e Destinatários de Alertas")
     tab_users, tab_alertas = st.tabs(["👤 Controle de Usuários", "📩 Destinatários de Alertas por E-mail"])
@@ -516,7 +558,6 @@ elif menu == "Gestão de Acessos":
 
     with tab_alertas:
         st.subheader("📋 Lista de Gestores e Destinatários dos Relatórios")
-        st.caption("Cadastre ou ative os e-mails nesta lista para que apareçam como opção nos formulários de notificação.")
         try:
             res_dest = supabase.table("destinatarios_alertas").select("*").execute()
             df_dest = pd.DataFrame(res_dest.data) if res_dest.data else pd.DataFrame()

@@ -8,88 +8,74 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 
-# --- CSS COM CAIXAS DE ENTRADA CLARAS E BORDAS DE ALTO CONTRASTE ---
+# --- INJEÇÃO DIRETA NOS ELEMENTOS NATIVOS DO STREAMLIT ---
 st.markdown("""
     <style>
     :root {
         --inplanet-dark: #121512;
         --inplanet-card: #1A201B;
         --inplanet-green: #3A6B52;
-        --inplanet-green-hover: #487F63;
-        --inplanet-text: #F0F5F2;
     }
     
     .stApp {
-        background-color: var(--inplanet-dark);
-        color: var(--inplanet-text);
+        background-color: var(--inplanet-dark) !important;
     }
     
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    
-    [data-testid="stSidebar"] {
-        background-color: var(--inplanet-card);
-        border-right: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    
-    /* Card de Formulários e Login */
+    /* Card do Formulário */
     .stForm {
-        background-color: var(--inplanet-card);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 12px;
-        padding: 2rem;
+        background-color: var(--inplanet-card) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 12px !important;
+        padding: 2rem !important;
     }
     
     /* ==============================================================
-       CAIXAS DE DIGITAÇÃO: FUNDO BRANCO, TEXTO ESCURO E BORDAS VISÍVEIS 
+       FORÇA CAIXAS BRANCAS E BORDAS EM TODOS OS CAMPOS DE TEXTO/SENHA
        ============================================================== */
-    div[data-baseweb="input"],
-    div[data-baseweb="input"] > div,
-    div[data-baseweb="base-input"],
-    div[data-baseweb="select"] > div,
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stPasswordInput"] input,
+    div[data-testid="stSelectbox"] > div,
     textarea {
         background-color: #FFFFFF !important;
-        border: 2px solid var(--inplanet-green) !important;
+        color: #111411 !important;
+        border: 2px solid #3A6B52 !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+    }
+    
+    /* Contêiner da caixa de texto */
+    div[data-testid="stTextInput"] > div > div,
+    div[data-testid="stPasswordInput"] > div > div {
+        background-color: #FFFFFF !important;
+        border: 2px solid #3A6B52 !important;
         border-radius: 8px !important;
     }
-    
-    /* Força o texto digitado e ícones para cor escura e alta legibilidade */
-    div[data-baseweb="input"] input,
-    div[data-baseweb="base-input"] input,
-    textarea,
-    div[data-baseweb="select"] span {
-        color: #111411 !important;
+
+    /* Texto digitado e ícone de ocultar senha */
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stPasswordInput"] input {
         -webkit-text-fill-color: #111411 !important;
-        font-weight: 500 !important;
     }
     
-    /* Cor do texto de dica (placeholder) */
-    div[data-baseweb="input"] input::placeholder,
-    textarea::placeholder {
-        color: #666666 !important;
-        -webkit-text-fill-color: #666666 !important;
+    div[data-testid="stPasswordInput"] button {
+        color: #111411 !important;
     }
-    
-    /* Destaque ao clicar/focar na caixa */
-    div[data-baseweb="input"]:focus-within,
-    div[data-baseweb="select"]:focus-within > div {
-        border-color: #82C99B !important;
-        box-shadow: 0 0 0 3px rgba(130, 201, 155, 0.4) !important;
-    }
-    
-    /* Rótulos dos campos */
-    .stTextInput label, .stSelectbox label, .stTextArea label, .stDateInput label {
+
+    /* Rótulos acima das caixas */
+    div[data-testid="stTextInput"] label,
+    div[data-testid="stPasswordInput"] label,
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stTextArea"] label {
         color: #F0F5F2 !important;
         font-weight: 600 !important;
-        font-size: 0.95rem !important;
+        font-size: 1rem !important;
     }
     
     /* Botões */
     .stButton > button {
         background-color: var(--inplanet-green) !important;
-        color: #ffffff !important;
+        color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
@@ -97,13 +83,7 @@ st.markdown("""
     }
     
     .stButton > button:hover {
-        background-color: var(--inplanet-green-hover) !important;
-    }
-    
-    /* Métricas */
-    [data-testid="stMetricValue"] {
-        color: #82C99B;
-        font-weight: 700;
+        background-color: #487F63 !important;
     }
     </style>
 """, unsafe_allow_html=True)

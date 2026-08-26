@@ -235,7 +235,7 @@ def upload_pdf(file, prefixo):
 
 st.title("🧪 Lab Master - Gestão de Equipamentos")
 
-# 1. DASHBOARD COM PROGRAMAÇÃO LOGÍSTICA (30, 60, 90 DIAS)
+# 1. DASHBOARD COM PROGRAMAÇÃO LOGÍSTICA & MODALIDADE
 if menu == "Dashboard & Inventário":
     st.header("📌 Inventário Geral e Status Operacional")
     res = supabase.table("equipamentos").select("*").execute()
@@ -248,11 +248,16 @@ if menu == "Dashboard & Inventário":
         col3.metric("Em Calibração", len(df[df["status"] == "Em Calibração"]))
         col4.metric("Manutenção / Interditados", len(df[~df["status"].isin(["Operacional", "Em Calibração"])]))
         
-        st.dataframe(df[["tag", "nome", "marca", "modelo", "serial_number", "status", "registrado_por"]], use_container_width=True)
+        cols_exibir = ["tag", "nome", "marca", "modelo", "serial_number", "status"]
+        if "modalidade_calibracao" in df.columns:
+            cols_exibir.append("modalidade_calibracao")
+        cols_exibir.append("registrado_por")
+        
+        st.dataframe(df[cols_exibir], use_container_width=True)
 
         st.divider()
         st.subheader("🗓️ Planejamento Logístico de Envio (Janelas de 30, 60 e 90 dias)")
-        st.caption("Organize o despacho de equipamentos conforme a distância do fornecedor (Local, Estadual ou Internacional).")
+        st.caption("Organize a logística conforme o tipo de serviço: Envio Externo, In-Loco ou Qualificação OQ/PQ.")
 
         calib_res = supabase.table("calibracoes").select("equip_tag, data_venc, registrado_por").execute()
         
@@ -261,64 +266,46 @@ if menu == "Dashboard & Inventário":
             df_calib['data_venc_dt'] = pd.to_datetime(df_calib['data_venc'])
             hoje = pd.Timestamp.now().normalize()
             
-            # Pega apenas a calibração mais recente por equipamento
             df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
             df_calib['dias_restantes'] = (df_calib['data_venc_dt'] - hoje).dt.days
             
-            # Une com os dados do equipamento
-            df_calib = df_calib.merge(df[['tag', 'nome', 'marca', 'status']], left_on='equip_tag', right_on='tag', how='left')
+            df_calib = df_calib.merge(df, left_on='equip_tag', right_on='tag', how='left')
             
-            # Divisão em Janelas Logísticas
             df_30 = df_calib[df_calib['dias_restantes'] <= 30].sort_values('dias_restantes')
             df_60 = df_calib[(df_calib['dias_restantes'] > 30) & (df_calib['dias_restantes'] <= 60)].sort_values('dias_restantes')
             df_90 = df_calib[(df_calib['dias_restantes'] > 60) & (df_calib['dias_restantes'] <= 90)].sort_values('dias_restantes')
 
-            # Cartões resumidos
             m1, m2, m3 = st.columns(3)
             m1.metric("🚨 Urgente (Até 30 dias)", f"{len(df_30)} eq.", help="Ação Imediata / Fornecedores Locais")
             m2.metric("⚠️ Médio Prazo (31 a 60 dias)", f"{len(df_60)} eq.", help="Preparar Envio / Fornecedores Estaduais")
             m3.metric("✈️ Longo Prazo (61 a 90 dias)", f"{len(df_90)} eq.", help="Logística Complexa / Fornecedores Internacionais")
 
-            # Guias de detalhamento
             tab_30, tab_60, tab_90 = st.tabs([
-                "🔴 Janela 1: Até 30 dias (Fornecedor Local)", 
-                "🟡 Janela 2: 31 a 60 dias (Outros Estados)", 
-                "🔵 Janela 3: 61 a 90 dias (Internacional / Exportação)"
+                "🔴 Janela 1: Até 30 dias (Urgente / Local)", 
+                "🟡 Janela 2: 31 a 60 dias (Médio Prazo / Estadual)", 
+                "🔵 Janela 3: 61 a 90 dias (Planejamento / Internacional / OQ-PQ)"
             ])
+
+            cols_view = ['equip_tag', 'nome', 'marca', 'modalidade_calibracao', 'data_venc', 'dias_restantes', 'status'] if 'modalidade_calibracao' in df_calib.columns else ['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']
 
             with tab_30:
                 if not df_30.empty:
                     st.error("⚠️ Equipamentos vencidos ou prestes a vencer neste mês:")
-                    st.dataframe(
-                        df_30[['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']].rename(
-                            columns={'equip_tag': 'TAG', 'nome': 'Nome', 'marca': 'Marca', 'data_venc': 'Vencimento', 'dias_restantes': 'Dias Restantes', 'status': 'Status'}
-                        ),
-                        use_container_width=True
-                    )
+                    st.dataframe(df_30[cols_view], use_container_width=True)
                 else:
                     st.success("✅ Nenhum equipamento vencido ou a vencer nos próximos 30 dias.")
 
             with tab_60:
                 if not df_60.empty:
-                    st.warning("📦 Programe cotações e frete intermunicipal/interestadual para estes equipamentos:")
-                    st.dataframe(
-                        df_60[['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']].rename(
-                            columns={'equip_tag': 'TAG', 'nome': 'Nome', 'marca': 'Marca', 'data_venc': 'Vencimento', 'dias_restantes': 'Dias Restantes', 'status': 'Status'}
-                        ),
-                        use_container_width=True
-                    )
+                    st.warning("📦 Programe agendamentos in-loco e fretes para estes equipamentos:")
+                    st.dataframe(df_60[cols_view], use_container_width=True)
                 else:
                     st.info("Nenhum equipamento na janela de 31 a 60 dias.")
 
             with tab_90:
                 if not df_90.empty:
-                    st.info("✈️ Inicie os trâmites burocráticos, licenças e logística internacional:")
-                    st.dataframe(
-                        df_90[['equip_tag', 'nome', 'marca', 'data_venc', 'dias_restantes', 'status']].rename(
-                            columns={'equip_tag': 'TAG', 'nome': 'Nome', 'marca': 'Marca', 'data_venc': 'Vencimento', 'dias_restantes': 'Dias Restantes', 'status': 'Status'}
-                        ),
-                        use_container_width=True
-                    )
+                    st.info("✈️ Inicie cotações, requisições de OQ/PQ e frete internacional:")
+                    st.dataframe(df_90[cols_view], use_container_width=True)
                 else:
                     st.info("Nenhum equipamento na janela de 61 a 90 dias.")
         else:
@@ -392,7 +379,7 @@ elif menu == "Prontuário & Tendências":
     else:
         st.info("Nenhum equipamento cadastrado no sistema.")
 
-# 3. GERENCIAR EQUIPAMENTOS
+# 3. GERENCIAR EQUIPAMENTOS (COM NOVO CAMPO DE MODALIDADE)
 elif menu == "Gerenciar Equipamentos":
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     res_exist = supabase.table("equipamentos").select("*").execute()
@@ -411,7 +398,7 @@ elif menu == "Gerenciar Equipamentos":
         lista_tags = ["-- Cadastrar Novo Equipamento --"] + (df_eq_exist["tag"].tolist() if not df_eq_exist.empty else [])
         tag_selecionada = st.selectbox("Selecione para EDITAR um existente ou mantenha para NOVO:", lista_tags)
         
-        def_tag, def_nome, def_marca, def_modelo, def_sn, def_status = "", "", "", "", "", "Operacional"
+        def_tag, def_nome, def_marca, def_modelo, def_sn, def_status, def_mod = "", "", "", "", "", "Operacional", "Envio Externo"
         if tag_selecionada != "-- Cadastrar Novo Equipamento --" and not df_eq_exist.empty:
             row = df_eq_exist[df_eq_exist["tag"] == tag_selecionada].iloc[0]
             def_tag = str(row.get("tag", ""))
@@ -420,6 +407,7 @@ elif menu == "Gerenciar Equipamentos":
             def_modelo = str(row.get("modelo", "")) if pd.notna(row.get("modelo")) else ""
             def_sn = str(row.get("serial_number", "")) if pd.notna(row.get("serial_number")) else ""
             def_status = str(row.get("status", "Operacional"))
+            def_mod = str(row.get("modalidade_calibracao", "Envio Externo"))
             
         with st.form("form_equip", clear_on_submit=False):
             col1, col2 = st.columns(2)
@@ -427,6 +415,9 @@ elif menu == "Gerenciar Equipamentos":
                 tag = st.text_input("Tag / Código Interno", value=def_tag)
                 nome = st.text_input("Nome do Equipamento", value=def_nome)
                 marca = st.text_input("Marca / Fabricante", value=def_marca)
+                opcoes_mod = ["Envio Externo", "In-Loco", "Qualificação OQ/PQ"]
+                idx_mod = opcoes_mod.index(def_mod) if def_mod in opcoes_mod else 0
+                modalidade = st.selectbox("Modalidade de Serviço", opcoes_mod, index=idx_mod)
             with col2:
                 modelo = st.text_input("Modelo", value=def_modelo)
                 serial_number = st.text_input("Número de Série", value=def_sn)
@@ -437,7 +428,11 @@ elif menu == "Gerenciar Equipamentos":
             label_btn = "Atualizar Equipamento" if tag_selecionada != "-- Cadastrar Novo Equipamento --" else "Salvar Novo Equipamento"
             if st.form_submit_button(label_btn):
                 if tag and nome:
-                    dado = {"tag": tag, "nome": nome, "marca": marca, "modelo": modelo, "serial_number": serial_number, "status": status, "registrado_por": user_email}
+                    dado = {
+                        "tag": tag, "nome": nome, "marca": marca, "modelo": modelo, 
+                        "serial_number": serial_number, "status": status, 
+                        "modalidade_calibracao": modalidade, "registrado_por": user_email
+                    }
                     supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
                     st.success(f"Equipamento {tag} gravado!")
                     st.rerun()
@@ -446,7 +441,7 @@ elif menu == "Gerenciar Equipamentos":
 
     with tab_massa:
         st.markdown("Suba uma planilha **.csv** ou **.xlsx**.")
-        st.caption("Status aceitos: `Operacional`, `Em Calibração`, `Em Manutenção`, `Interditado / Fora de Uso`.")
+        st.caption("Colunas aceitas: `tag`, `nome`, `marca`, `modelo`, `serial_number`, `status`, `modalidade_calibracao`.")
         arquivo = st.file_uploader("Selecione o arquivo", type=["csv", "xlsx"])
         if arquivo:
             try:
@@ -464,6 +459,7 @@ elif menu == "Gerenciar Equipamentos":
                                 "modelo": str(row["modelo"]).strip() if "modelo" in df_import.columns and pd.notna(row["modelo"]) else None,
                                 "serial_number": str(row["serial_number"]).strip() if "serial_number" in df_import.columns and pd.notna(row["serial_number"]) else None,
                                 "status": str(row["status"]).strip() if "status" in df_import.columns and pd.notna(row["status"]) else "Operacional",
+                                "modalidade_calibracao": str(row["modalidade_calibracao"]).strip() if "modalidade_calibracao" in df_import.columns and pd.notna(row["modalidade_calibracao"]) else "Envio Externo",
                                 "registrado_por": user_email
                             })
                         supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()

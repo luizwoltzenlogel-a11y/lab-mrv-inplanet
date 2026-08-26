@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
-from datetime import datetime
 
 st.set_page_config(page_title="Lab Master - InPlanet", layout="wide")
 
@@ -48,37 +47,40 @@ if menu == "Dashboard & Inventário":
         
         st.dataframe(df, use_container_width=True)
 
-        # --- ALERTAS VISUAIS DE CALIBRAÇÃO (NOVO) ---
+        # --- ALERTAS VISUAIS DE CALIBRAÇÃO ---
         st.subheader("⚠️ Alertas de Calibração (Vencem em até 30 dias)")
         calib_res = supabase.table("calibracoes").select("equip_tag, data_venc, registrado_por").execute()
         
         if calib_res.data:
             df_calib = pd.DataFrame(calib_res.data)
-            df_calib['data_venc'] = pd.to_datetime(df_calib['data_venc']).dt.date
-            hoje = datetime.now().date()
+            df_calib['data_venc_dt'] = pd.to_datetime(df_calib['data_venc'])
+            hoje = pd.Timestamp.now().normalize()
             
             # Pega apenas a calibração mais recente de cada equipamento
-            df_calib = df_calib.sort_values('data_venc', ascending=False).drop_duplicates('equip_tag')
+            df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
+            
+            # Calcula a diferença em dias com suporte nativo do Pandas
+            df_calib['dias'] = (df_calib['data_venc_dt'] - hoje).dt.days
             
             # Filtra calibrações que vencem em 30 dias ou menos (incluindo vencidas)
-            vencendo = df_calib[(df_calib['data_venc'] - hoje).dt.days <= 30]
+            vencendo = df_calib[df_calib['dias'] <= 30]
             
             if not vencendo.empty:
                 for _, row in vencendo.iterrows():
-                    dias = (row['data_venc'] - hoje).days
+                    dias = row['dias']
+                    data_str = row['data_venc_dt'].strftime('%d/%m/%Y')
                     status_venc = "VENCIDO!" if dias < 0 else f"Vence em {dias} dias"
                     
                     col_a, col_b = st.columns([5, 1])
                     with col_a:
                         if dias < 0:
-                            st.error(f"🚨 **{row['equip_tag']}**: {status_venc} ({row['data_venc']})")
+                            st.error(f"🚨 **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
                         else:
-                            st.warning(f"⚠️ **{row['equip_tag']}**: {status_venc} ({row['data_venc']})")
+                            st.warning(f"⚠️ **{row['equip_tag']}**: {status_venc} (Limite: {data_str})")
                     
                     with col_b:
-                        # Botão que gera o e-mail automático
-                        assunto = f"Alerta de Calibração: {row['equip_tag']}"
-                        corpo = f"Olá,%0A%0AA calibração do equipamento {row['equip_tag']} {status_venc.lower()}.%0AData limite: {row['data_venc']}.%0A%0AAtenciosamente,%0ALab Master InPlanet"
+                        assunto = f"Alerta de Calibracao: {row['equip_tag']}"
+                        corpo = f"Olá,%0A%0AA calibração do equipamento {row['equip_tag']} {status_venc.lower()}.%0AData limite: {data_str}.%0A%0AAtenciosamente,%0ALab Master InPlanet"
                         link = f"mailto:{row['registrado_por']}?subject={assunto}&body={corpo}"
                         st.markdown(f'<a href="{link}"><button style="background-color:#4CAF50;color:white;border:none;padding:5px 10px;border-radius:5px;cursor:pointer;">✉️ Notificar</button></a>', unsafe_allow_html=True)
             else:

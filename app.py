@@ -15,7 +15,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 TEMPO_INATIVIDADE = 600
 
-# --- CSS RIGOROSO E COMPLETO PARA TODOS OS ELEMENTOS DO FORMULÁRIO ---
+# --- CSS DE ALTO CONTRASTE COM CORREÇÃO DEFINITIVA DE DATAS ---
 st.markdown("""
     <style>
     :root {
@@ -31,16 +31,12 @@ st.markdown("""
         padding: 2rem !important;
     }
 
-    /* 1. FORÇAR FUNDO BRANCO E BORDA VERDE EM TODOS OS INPUTS (INCLUINDO DATA) */
+    /* 1. FUNDO BRANCO E BORDA VERDE EM TODOS OS CAMPOS */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
-    div[data-testid="stDateInput"] input,
-    div[data-testid="stDateInput"] > div,
-    div[data-testid="stDateInput"] div[data-baseweb="input"],
     div[data-testid="stSelectbox"] > div > div,
     div[data-testid="stTextArea"] textarea,
-    div[data-baseweb="input"],
     div[data-baseweb="input"] > div,
     div[data-baseweb="select"] > div,
     div[data-baseweb="base-input"] {
@@ -50,12 +46,22 @@ st.markdown("""
         opacity: 1 !important;
     }
 
-    /* 2. FORÇAR TEXTO E ÍCONES PRETO ABSOLUTO EM CAMPOS DE DATA E SELEÇÃO */
+    /* CORREÇÃO ESPECÍFICA PARA CAIXAS DE DATA (STDATEINPUT) */
+    div[data-testid="stDateInput"] > div,
+    div[data-testid="stDateInput"] [data-baseweb="input"],
+    div[data-testid="stDateInput"] [data-baseweb="input"] *,
+    div[data-testid="stDateInput"] input {
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+        border-color: var(--inplanet-green) !important;
+        font-weight: 600 !important;
+    }
+
+    /* 2. FORÇAR LETRAS PRETAS EM TODOS OS INPUTS E DROPDOWNS */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
-    div[data-testid="stDateInput"] input,
-    div[data-testid="stDateInput"] *,
     div[data-testid="stTextArea"] textarea,
     div[data-testid="stSelectbox"] *,
     div[data-baseweb="select"] *,
@@ -70,7 +76,7 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* Fundo dos Calendários e Popovers */
+    /* Popovers, Calendários e Listas de Opções */
     ul[role="listbox"],
     div[data-baseweb="popover"],
     div[data-baseweb="menu"],
@@ -79,14 +85,16 @@ st.markdown("""
         background-color: #FFFFFF !important;
     }
 
+    /* Ícones (Calendário e Setas) */
     div[data-testid="stSelectbox"] svg,
     div[data-testid="stDateInput"] svg,
     div[data-testid="stPasswordInput"] button svg {
         fill: #000000 !important;
         color: #000000 !important;
+        background-color: transparent !important;
     }
 
-    /* 3. ESTILIZAÇÃO DO COMPONENTE DE UPLOAD DE ARQUIVOS */
+    /* Upload de Arquivos */
     div[data-testid="stFileUploader"] > section {
         background-color: #FFFFFF !important;
         border: 2px dashed var(--inplanet-green) !important;
@@ -97,21 +105,7 @@ st.markdown("""
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
     }
-    div[data-testid="stFileUploader"] section button {
-        background-color: var(--inplanet-green) !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 6px !important;
-        font-weight: 600 !important;
-    }
-    div[data-testid="stFileUploader"] section button * {
-        color: #FFFFFF !important;
-        fill: #FFFFFF !important;
-        -webkit-text-fill-color: #FFFFFF !important;
-    }
-
-    /* 4. BOTÕES DE SUBMIT DOS FORMULÁRIOS (DESTACADOS EM VERDE) */
-    .stButton > button,
+    div[data-testid="stFileUploader"] section button, .stButton > button,
     div[data-testid="stFormSubmitButton"] > button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
@@ -122,17 +116,14 @@ st.markdown("""
         padding: 0.6rem 1rem !important;
     }
     .stButton > button:hover,
-    div[data-testid="stFormSubmitButton"] > button:hover {
-        background-color: #487F63 !important;
+    div[data-testid="stFormSubmitButton"] > button:hover { 
+        background-color: #487F63 !important; 
     }
 
     /* Rótulos dos Campos (Labels) */
-    div[data-testid="stTextInput"] label,
-    div[data-testid="stPasswordInput"] label,
-    div[data-testid="stNumberInput"] label,
-    div[data-testid="stSelectbox"] label,
-    div[data-testid="stTextArea"] label,
-    div[data-testid="stDateInput"] label,
+    div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
+    div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
+    div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
     div[data-testid="stFileUploader"] label {
         color: #F0F5F2 !important;
         -webkit-text-fill-color: #F0F5F2 !important;

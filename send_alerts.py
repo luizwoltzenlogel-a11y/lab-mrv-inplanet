@@ -6,20 +6,17 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client
 
-# Conexão com Supabase via Variáveis de Ambiente
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Configuração de E-mail (SMTP)
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 EMAIL_USER = os.environ.get("EMAIL_USER")
 EMAIL_PASS = os.environ.get("EMAIL_PASS")
-EMAIL_TO = os.environ.get("EMAIL_TO") # E-mail do Gestor
+EMAIL_TO = os.environ.get("EMAIL_TO")
 
 def verificar_e_enviar():
-    # 1. Consulta Equipamentos Interditados ou em Manutenção
     eq_res = supabase.table("equipamentos").select("*").execute()
     df_eq = pd.DataFrame(eq_res.data) if eq_res.data else pd.DataFrame()
     
@@ -29,7 +26,6 @@ def verificar_e_enviar():
         for _, row in indisp.iterrows():
             fora_de_uso.append(f"<li><b>{row['tag']}</b> ({row['nome']}): Status = <i>{row['status']}</i></li>")
 
-    # 2. Consulta Calibrações Vencidas ou a Vencer (30 dias)
     calib_res = supabase.table("calibracoes").select("equip_tag, data_venc").execute()
     alertas_calib = []
     
@@ -38,7 +34,6 @@ def verificar_e_enviar():
         df_calib['data_venc_dt'] = pd.to_datetime(df_calib['data_venc'])
         hoje = pd.Timestamp.now().normalize()
         
-        # Pega a calibração mais recente por equipamento
         df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
         df_calib['dias'] = (df_calib['data_venc_dt'] - hoje).dt.days
         
@@ -51,19 +46,14 @@ def verificar_e_enviar():
             else:
                 alertas_calib.append(f"<li>⚠️ <b>{row['equip_tag']}</b>: Vence em {dias} dias ({data_str})</li>")
 
-    # Se houver qualquer pendência, envia o e-mail
     if fora_de_uso or alertas_calib:
         html = f"""
         <h2>🧪 Lab Master - Relatório Diário de Alertas</h2>
-        <p>Este é um disparo automático sobre o status metrológico dos equipamentos do laboratório InPlanet.</p>
-        
+        <p>Status metrológico dos equipamentos do laboratório InPlanet:</p>
         <h3>1. Calibrações Perto do Vencimento ou Vencidas:</h3>
         <ul>{"".join(alertas_calib) if alertas_calib else "<li>Nenhuma calibração crítica.</li>"}</ul>
-        
         <h3>2. Equipamentos Indisponíveis (Fora de Uso / Manutenção):</h3>
         <ul>{"".join(fora_de_uso) if fora_de_uso else "<li>Todos os equipamentos estão operacionais.</li>"}</ul>
-        
-        <br><p><i>Acesse o painel do Lab Master para mais detalhes.</i></p>
         """
         
         msg = MIMEMultipart("alternative")

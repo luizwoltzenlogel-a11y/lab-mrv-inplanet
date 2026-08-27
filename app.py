@@ -31,7 +31,7 @@ st.markdown("""
         padding: 2rem !important;
     }
 
-    /* 1. INPUTS GERAIS (TEXTO, SENHA, NUMERO, SELECT, TEXTAREA) */
+    /* INPUTS GERAIS */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -46,7 +46,7 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* 2. OVERRIDE DA CAIXA DE DATA (STDATEINPUT) */
+    /* OVERRIDE DA CAIXA DE DATA */
     div[data-testid="stDateInput"] { background-color: transparent !important; }
     div[data-testid="stDateInput"] *,
     div[data-testid="stDateInput"] div,
@@ -63,7 +63,7 @@ st.markdown("""
         border-radius: 8px !important;
     }
 
-    /* 3. DROPDOWNS, CALENDÁRIOS E POPOVERS */
+    /* DROPDOWNS E CALENDÁRIOS */
     ul[role="listbox"], div[data-baseweb="popover"], div[data-baseweb="menu"],
     div[data-baseweb="datepicker"], div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
@@ -253,7 +253,7 @@ if st.sidebar.button("🚪 Sair do Sistema"):
 
 st.sidebar.divider()
 
-# MENUS ORGANIZADOS
+# DEFINIÇÃO DO MENU LATERAL
 menus_disponiveis = [
     "🏠 Hub Principal", 
     "📌 Equipamentos - Inventário", 
@@ -266,18 +266,17 @@ if st.session_state["user_perfil"] in ["Admin", "Tecnico"]:
 if st.session_state["user_perfil"] == "Admin":
     menus_disponiveis.append("👥 Gestão de Acessos")
 
-if "menu_navegacao" not in st.session_state:
-    st.session_state["menu_navegacao"] = "🏠 Hub Principal"
+# Sincronização direta de estado via radio key
+if "radio_menu" not in st.session_state:
+    st.session_state["radio_menu"] = "🏠 Hub Principal"
 
-# Sincroniza estado de navegação
-idx_menu = menus_disponiveis.index(st.session_state["menu_navegacao"]) if st.session_state["menu_navegacao"] in menus_disponiveis else 0
-menu = st.sidebar.radio("Navegação", menus_disponiveis, index=idx_menu, key="radio_menu")
-st.session_state["menu_navegacao"] = menu
-
+menu = st.sidebar.radio("Navegação", menus_disponiveis, key="radio_menu")
 user_email = st.session_state["user_email"]
 
+st.title("🧪 Lab Master")
+
 # ==============================================================================
-# 0. HUB PRINCIPAL (MENU INICIAL COM OS DOIS BOTÕES GRANDES)
+# 0. HUB PRINCIPAL (MENU INICIAL)
 # ==============================================================================
 if menu == "🏠 Hub Principal":
     st.markdown("<h2 style='text-align: center; margin-bottom: 2rem;'>🧪 Central de Gestão Laboratorial</h2>", unsafe_allow_html=True)
@@ -296,7 +295,7 @@ if menu == "🏠 Hub Principal":
         """, unsafe_allow_html=True)
         st.write("")
         if st.button("Acessar Módulo de Equipamentos ➔", use_container_width=True, key="btn_hub_equip"):
-            st.session_state["menu_navegacao"] = "📌 Equipamentos - Inventário"
+            st.session_state["radio_menu"] = "📌 Equipamentos - Inventário"
             st.rerun()
 
     with col2:
@@ -311,7 +310,7 @@ if menu == "🏠 Hub Principal":
         """, unsafe_allow_html=True)
         st.write("")
         if st.button("Acessar Módulo de Reagentes & Consumíveis ➔", use_container_width=True, key="btn_hub_reag"):
-            st.session_state["menu_navegacao"] = "📦 Reagentes & Consumíveis"
+            st.session_state["radio_menu"] = "📦 Reagentes & Consumíveis"
             st.rerun()
 
 # ==============================================================================
@@ -827,4 +826,3 @@ elif menu == "👥 Gestão de Acessos":
                     st.rerun()
         except Exception:
             st.warning("⚠️ Tabela 'destinatarios_alertas' não encontrada no banco.")
-        

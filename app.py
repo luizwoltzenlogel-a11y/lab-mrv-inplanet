@@ -15,7 +15,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 TEMPO_INATIVIDADE = 600
 
-# --- CSS DEFINITIVO DE ALTO CONTRASTE ---
+# --- CSS DE ALTO CONTRASTE ---
 st.markdown("""
     <style>
     :root {
@@ -31,7 +31,7 @@ st.markdown("""
         padding: 2rem !important;
     }
 
-    /* INPUTS GERAIS (FUNDO BRANCO, TEXTO PRETO, BORDA VERDE) */
+    /* INPUTS GERAIS */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -46,7 +46,7 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* CAIXA DE DATA */
+    /* OVERRIDE DA CAIXA DE DATA */
     div[data-testid="stDateInput"] { background-color: transparent !important; }
     div[data-testid="stDateInput"] *,
     div[data-testid="stDateInput"] div,
@@ -232,18 +232,16 @@ if not st.session_state.get("autenticado", False):
                     st.warning("Preencha todos os campos.")
     st.stop()
 
-# --- CALLBACKS PARA TROCA DE NAVEGAÇÃO SEGURA (EVITA O BUG) ---
+# --- NAVEGAÇÃO E RBAC (CONTROLE DE ACESSO) ---
 def selecionar_modulo(nome_modulo, pagina_inicial):
     st.session_state["modulo_ativo"] = nome_modulo
     st.session_state["pagina_ativa"] = pagina_inicial
 
-# Inicialização dos estados de navegação
 if "modulo_ativo" not in st.session_state:
     st.session_state["modulo_ativo"] = "Hub"
 if "pagina_ativa" not in st.session_state:
     st.session_state["pagina_ativa"] = "🏠 Hub Principal"
 
-# --- BARRA LATERAL ---
 home_link = f"/?session_user={st.session_state['user_email']}&session_perfil={st.session_state['user_perfil']}"
 st.sidebar.markdown(f"""
     <div style="text-align: center; margin-bottom: 1rem;">
@@ -264,30 +262,34 @@ if st.sidebar.button("🚪 Sair do Sistema"):
 
 st.sidebar.divider()
 
-# DEFINIÇÃO DINÂMICA DO MENU LATERAL CONFORME O MÓDULO SELECIONADO
 perfil = st.session_state["user_perfil"]
 
+# CONSTRUÇÃO DO MENU BASEADA EM PERMISSÕES (RBAC)
 if st.session_state["modulo_ativo"] == "Equipamentos":
     st.sidebar.markdown("### 🔬 Módulo Equipamentos")
     opcoes_menu = ["📌 Inventário & Status", "🛡️ Modo Auditoria (ISO 17025)", "📈 Prontuário & Tendências"]
+    
+    # Técnicos e Admins veem opções operacionais
     if perfil in ["Admin", "Tecnico"]:
         opcoes_menu.extend(["📝 Gerenciar Equipamentos", "📐 Calibrações & Qualificações", "🛠️ Manutenções & Intervenções"])
+    
     if perfil == "Admin":
         opcoes_menu.append("👥 Gestão de Acessos")
         
 elif st.session_state["modulo_ativo"] == "Reagentes":
     st.sidebar.markdown("### 📦 Módulo Reagentes")
-    opcoes_menu = ["📊 Painel de Controle de Estoque"]
+    opcoes_menu = ["📦 Controle de Estoque"]
+    
     if perfil == "Admin":
         opcoes_menu.append("👥 Gestão de Acessos")
         
-else: # HUB PRINCIPAL
+else: 
     st.sidebar.markdown("### 🏠 Visão Geral")
     opcoes_menu = ["🏠 Hub Principal"]
     if perfil == "Admin":
         opcoes_menu.append("👥 Gestão de Acessos")
 
-# Renderização do menu filtrado
+# Sincroniza menu ativo
 if st.session_state["pagina_ativa"] not in opcoes_menu:
     st.session_state["pagina_ativa"] = opcoes_menu[0]
 
@@ -334,10 +336,10 @@ if menu == "🏠 Hub Principal":
             </div>
         """, unsafe_allow_html=True)
         st.write("")
-        st.button("Acessar Módulo de Reagentes & Consumíveis ➔", on_click=selecionar_modulo, args=("Reagentes", "📊 Painel de Controle de Estoque"), use_container_width=True, key="btn_hub_reag")
+        st.button("Acessar Módulo de Reagentes & Consumíveis ➔", on_click=selecionar_modulo, args=("Reagentes", "📦 Controle de Estoque"), use_container_width=True, key="btn_hub_reag")
 
 # ==============================================================================
-# 1. EQUIPAMENTOS - INVENTÁRIO
+# 1. EQUIPAMENTOS - INVENTÁRIO (Liberado p/ Todos)
 # ==============================================================================
 elif menu == "📌 Inventário & Status":
     st.header("📌 Inventário Geral e Status Operacional")
@@ -386,7 +388,7 @@ elif menu == "📌 Inventário & Status":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 2. MODO AUDITORIA
+# 2. MODO AUDITORIA (Liberado p/ Todos)
 # ==============================================================================
 elif menu == "🛡️ Modo Auditoria (ISO 17025)":
     st.header("🛡️ Visão de Conformidade Metrológica - Auditoria")
@@ -428,7 +430,7 @@ elif menu == "🛡️ Modo Auditoria (ISO 17025)":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 3. PRONTUÁRIO & TENDÊNCIAS
+# 3. PRONTUÁRIO & TENDÊNCIAS (Liberado p/ Todos)
 # ==============================================================================
 elif menu == "📈 Prontuário & Tendências":
     st.header("📈 Prontuário do Equipamento e Análise de Tendências")
@@ -495,17 +497,17 @@ elif menu == "📈 Prontuário & Tendências":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 4. REAGENTES E CONSUMÍVEIS
+# 4. REAGENTES E CONSUMÍVEIS (RBAC NAS ABAS)
 # ==============================================================================
-elif menu == "📊 Painel de Controle de Estoque":
+elif menu == "📦 Controle de Estoque":
     st.header("📦 Gestão de Reagentes e Consumíveis (Req. 6.6)")
     
-    tab_dash, tab_cat, tab_in, tab_out = st.tabs([
-        "📊 Dashboard & Alertas", 
-        "📋 Catálogo de Produtos", 
-        "📥 Entrada de Lotes (CoA)", 
-        "🧪 Consumo / Baixa"
-    ])
+    # Criação dinâmica de abas dependendo do Perfil
+    abas_reag = ["📊 Dashboard & Alertas", "📋 Catálogo de Produtos"]
+    if perfil in ["Admin", "Tecnico"]:
+        abas_reag.extend(["📥 Entrada de Lotes (CoA)", "🧪 Consumo / Baixa"])
+        
+    tabs = st.tabs(abas_reag)
     
     try:
         res_cat = supabase.table("reagentes").select("*").execute()
@@ -516,7 +518,8 @@ elif menu == "📊 Painel de Controle de Estoque":
         df_cat, df_lotes = pd.DataFrame(), pd.DataFrame()
         st.warning("⚠️ Rode os scripts SQL no Supabase para criar as tabelas de estoque.")
 
-    with tab_dash:
+    # TAB: DASHBOARD (Todos)
+    with tabs[0]:
         if not df_cat.empty and not df_lotes.empty:
             df_ativos = df_lotes[df_lotes["status"].isin(["Aprovado", "Em Uso", "Quarentena"])]
             estoque_atual = df_ativos.groupby("reagente_id")["quantidade_atual"].sum().reset_index() if not df_ativos.empty else pd.DataFrame(columns=["reagente_id", "quantidade_atual"])
@@ -548,137 +551,145 @@ elif menu == "📊 Painel de Controle de Estoque":
         else:
             st.info("Cadastre produtos e insira lotes para visualizar o Dashboard.")
 
-    with tab_cat:
-        st.subheader("Cadastrar Novo Produto / Consumível")
-        with st.form("form_cat", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            codigo_interno = col1.text_input("Código Interno (ex: REAG-001, FILT-01) *")
-            nome = col1.text_input("Nome do Reagente / Consumível (Seringa, Coluna, etc.) *")
-            cas_number = col2.text_input("CAS Number / Part Number (Opcional)")
-            unidade = col2.selectbox("Unidade de Medida", ["Unidade (Un)", "Caixa (Cx)", "Pacote (Pct)", "Litros (L)", "Mililitros (mL)", "Quilogramas (kg)", "Gramas (g)"])
-            estoque_minimo = col1.number_input("Estoque Mínimo de Alerta", min_value=0.0, step=0.1)
-            armazenamento = col2.selectbox("Condição de Armazenamento", ["Temperatura Ambiente", "Geladeira (2 a 8°C)", "Freezer (-20°C)", "Armário de Inflamáveis", "Armário de Ácidos"])
-            
-            if st.form_submit_button("Salvar Produto no Catálogo"):
-                if codigo_interno and nome:
-                    try:
-                        dado = {"codigo_interno": codigo_interno, "nome": nome, "cas_number": cas_number, "unidade_medida": unidade, "estoque_minimo": float(estoque_minimo), "armazenamento": armazenamento, "registrado_por": user_email}
-                        supabase.table("reagentes").insert(dado).execute()
-                        st.success(f"Produto {nome} salvo no catálogo!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar: O código interno já existe? Detalhe: {e}")
-                else:
-                    st.error("Preencha Código Interno e Nome.")
+    # TAB: CATÁLOGO
+    with tabs[1]:
+        if perfil in ["Admin", "Tecnico"]:
+            st.subheader("Cadastrar Novo Produto / Consumível")
+            with st.form("form_cat", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                codigo_interno = col1.text_input("Código Interno (ex: REAG-001, FILT-01) *")
+                nome = col1.text_input("Nome do Reagente / Consumível (Seringa, Coluna, etc.) *")
+                cas_number = col2.text_input("CAS Number / Part Number (Opcional)")
+                unidade = col2.selectbox("Unidade de Medida", ["Unidade (Un)", "Caixa (Cx)", "Pacote (Pct)", "Litros (L)", "Mililitros (mL)", "Quilogramas (kg)", "Gramas (g)"])
+                estoque_minimo = col1.number_input("Estoque Mínimo de Alerta", min_value=0.0, step=0.1)
+                armazenamento = col2.selectbox("Condição de Armazenamento", ["Temperatura Ambiente", "Geladeira (2 a 8°C)", "Freezer (-20°C)", "Armário de Inflamáveis", "Armário de Ácidos"])
+                
+                if st.form_submit_button("Salvar Produto no Catálogo"):
+                    if codigo_interno and nome:
+                        try:
+                            dado = {"codigo_interno": codigo_interno, "nome": nome, "cas_number": cas_number, "unidade_medida": unidade, "estoque_minimo": float(estoque_minimo), "armazenamento": armazenamento, "registrado_por": user_email}
+                            supabase.table("reagentes").insert(dado).execute()
+                            st.success(f"Produto {nome} salvo no catálogo!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar: O código interno já existe? Detalhe: {e}")
+                    else:
+                        st.error("Preencha Código Interno e Nome.")
+        else:
+            st.info("🔒 Modo Leitura: Você pode consultar o catálogo abaixo, mas não tem permissão para inserir novos itens.")
 
         if not df_cat.empty:
             st.divider()
             st.subheader("Catálogo Existente")
             st.dataframe(df_cat[["codigo_interno", "nome", "cas_number", "unidade_medida", "estoque_minimo", "armazenamento"]], use_container_width=True)
 
-    with tab_in:
-        st.subheader("Dar Entrada em Lote / Frasco Físico")
-        if not df_cat.empty:
-            opcoes_prod = {f"{r['codigo_interno']} - {r['nome']}": r['id'] for _, r in df_cat.iterrows()}
-            with st.form("form_entrada", clear_on_submit=True):
-                col1, col2 = st.columns(2)
-                produto_sel = col1.selectbox("Produto do Catálogo *", list(opcoes_prod.keys()))
-                numero_lote = col2.text_input("Número do Lote / Série do Fabricante *")
-                
-                data_fab = col1.date_input("Data de Fabricação")
-                data_val = col2.date_input("Data de Validade *")
-                
-                qtd_inicial = col1.number_input("Quantidade Recebida (na unidade do produto) *", min_value=0.01, step=0.1)
-                status_lote = col2.selectbox("Status de Entrada", ["Aprovado", "Quarentena"])
-                
-                pdf_coa = st.file_uploader("Anexar Certificado de Análise / Laudo (PDF)", type=["pdf"])
-                
-                if st.form_submit_button("Registrar Entrada de Lote"):
-                    if numero_lote and qtd_inicial > 0:
-                        reag_id = opcoes_prod[produto_sel]
-                        pdf_url = upload_pdf(pdf_coa, f"COA_{numero_lote}") if pdf_coa else None
-                        
-                        dado_lote = {
-                            "reagente_id": reag_id, "numero_lote": numero_lote, "data_fabricacao": str(data_fab), "data_validade": str(data_val),
-                            "quantidade_inicial": float(qtd_inicial), "quantidade_atual": float(qtd_inicial), "status": status_lote,
-                            "pdf_coa_url": pdf_url, "registrado_por": user_email
-                        }
-                        res_insert = supabase.table("reagentes_lotes").insert(dado_lote).execute()
-                        lote_id = res_insert.data[0]["id"]
-                        
-                        supabase.table("reagentes_movimentacao").insert({
-                            "lote_id": lote_id, "tipo_movimento": "Entrada", "quantidade": float(qtd_inicial),
-                            "observacao": "Entrada inicial de lote", "registrado_por": user_email
-                        }).execute()
-                        
-                        st.success("Lote e Laudo registrados com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Preencha o Número do Lote e a Quantidade.")
-        else:
-            st.info("Cadastre produtos no catálogo primeiro.")
-
-    with tab_out:
-        st.subheader("Registrar Consumo / Baixa de Estoque")
-        if not df_lotes.empty and not df_cat.empty:
-            df_lotes_ativos = df_lotes[df_lotes["status"].isin(["Aprovado", "Em Uso"]) & (df_lotes["quantidade_atual"] > 0)]
-            if not df_lotes_ativos.empty:
-                df_mix = df_lotes_ativos.merge(df_cat, left_on="reagente_id", right_on="id", suffixes=("_lote", "_prod"))
-                opcoes_baixa = {f"Lote: {r['numero_lote']} | {r['nome']} | Disp: {r['quantidade_atual']} {r['unidade_medida']}": r['id_lote'] for _, r in df_mix.iterrows()}
-                
-                with st.form("form_baixa", clear_on_submit=True):
-                    lote_sel = st.selectbox("Selecione o Lote Físico para dar baixa *", list(opcoes_baixa.keys()))
+    # TABS: ENTRADA E CONSUMO (Apenas Admin/Técnico)
+    if perfil in ["Admin", "Tecnico"]:
+        with tabs[2]:
+            st.subheader("Dar Entrada em Lote / Frasco Físico")
+            if not df_cat.empty:
+                opcoes_prod = {f"{r['codigo_interno']} - {r['nome']}": r['id'] for _, r in df_cat.iterrows()}
+                with st.form("form_entrada", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    produto_sel = col1.selectbox("Produto do Catálogo *", list(opcoes_prod.keys()))
+                    numero_lote = col2.text_input("Número do Lote / Série do Fabricante *")
                     
-                    c1, c2 = st.columns(2)
-                    qtd_retirada = c1.number_input("Quantidade a abater do estoque *", min_value=0.01, step=0.1)
-                    tipo_baixa = c2.selectbox("Tipo de Movimento", ["Consumo", "Descarte (Vencido/Contaminado)", "Ajuste de Inventário"])
-                    obs = st.text_area("Justificativa / Ensaio onde foi utilizado")
+                    data_fab = col1.date_input("Data de Fabricação")
+                    data_val = col2.date_input("Data de Validade *")
                     
-                    if st.form_submit_button("Confirmar Baixa"):
-                        lote_id = opcoes_baixa[lote_sel]
-                        
-                        lote_bd = supabase.table("reagentes_lotes").select("quantidade_atual, status, data_abertura").eq("id", lote_id).execute().data[0]
-                        qtd_atual_bd = float(lote_bd["quantidade_atual"])
-                        
-                        if qtd_retirada > qtd_atual_bd:
-                            st.error(f"Quantidade insuficiente! Disponível: {qtd_atual_bd}.")
-                        else:
-                            nova_qtd = qtd_atual_bd - qtd_retirada
-                            novo_status = lote_bd["status"]
-                            nova_abertura = lote_bd["data_abertura"]
+                    qtd_inicial = col1.number_input("Quantidade Recebida (na unidade do produto) *", min_value=0.01, step=0.1)
+                    status_lote = col2.selectbox("Status de Entrada", ["Aprovado", "Quarentena"])
+                    
+                    pdf_coa = st.file_uploader("Anexar Certificado de Análise / Laudo (PDF)", type=["pdf"])
+                    
+                    if st.form_submit_button("Registrar Entrada de Lote"):
+                        if numero_lote and qtd_inicial > 0:
+                            reag_id = opcoes_prod[produto_sel]
+                            pdf_url = upload_pdf(pdf_coa, f"COA_{numero_lote}") if pdf_coa else None
                             
-                            if novo_status == "Aprovado" and tipo_baixa == "Consumo":
-                                novo_status = "Em Uso"
-                                nova_abertura = str(datetime.now().date())
-                                
-                            if nova_qtd <= 0 or tipo_baixa == "Descarte (Vencido/Contaminado)":
-                                novo_status = "Esgotado/Descartado"
-                                nova_qtd = 0.0
-
-                            supabase.table("reagentes_lotes").update({
-                                "quantidade_atual": nova_qtd, "status": novo_status, "data_abertura": nova_abertura
-                            }).eq("id", lote_id).execute()
+                            dado_lote = {
+                                "reagente_id": reag_id, "numero_lote": numero_lote, "data_fabricacao": str(data_fab), "data_validade": str(data_val),
+                                "quantidade_inicial": float(qtd_inicial), "quantidade_atual": float(qtd_inicial), "status": status_lote,
+                                "pdf_coa_url": pdf_url, "registrado_por": user_email
+                            }
+                            res_insert = supabase.table("reagentes_lotes").insert(dado_lote).execute()
+                            lote_id = res_insert.data[0]["id"]
                             
                             supabase.table("reagentes_movimentacao").insert({
-                                "lote_id": lote_id, "tipo_movimento": tipo_baixa, "quantidade": float(-qtd_retirada),
-                                "observacao": obs, "registrado_por": user_email
+                                "lote_id": lote_id, "tipo_movimento": "Entrada", "quantidade": float(qtd_inicial),
+                                "observacao": "Entrada inicial de lote", "registrado_por": user_email
                             }).execute()
                             
-                            st.success(f"Baixa de {qtd_retirada} registrada. Novo saldo: {nova_qtd}.")
+                            st.success("Lote e Laudo registrados com sucesso!")
                             st.rerun()
+                        else:
+                            st.error("Preencha o Número do Lote e a Quantidade.")
             else:
-                st.info("Nenhum lote com saldo disponível para uso.")
-        else:
-            st.info("Não há lotes físicos cadastrados.")
+                st.info("Cadastre produtos no catálogo primeiro.")
+
+        with tabs[3]:
+            st.subheader("Registrar Consumo / Baixa de Estoque")
+            if not df_lotes.empty and not df_cat.empty:
+                df_lotes_ativos = df_lotes[df_lotes["status"].isin(["Aprovado", "Em Uso"]) & (df_lotes["quantidade_atual"] > 0)]
+                if not df_lotes_ativos.empty:
+                    df_mix = df_lotes_ativos.merge(df_cat, left_on="reagente_id", right_on="id", suffixes=("_lote", "_prod"))
+                    opcoes_baixa = {f"Lote: {r['numero_lote']} | {r['nome']} | Disp: {r['quantidade_atual']} {r['unidade_medida']}": r['id_lote'] for _, r in df_mix.iterrows()}
+                    
+                    with st.form("form_baixa", clear_on_submit=True):
+                        lote_sel = st.selectbox("Selecione o Lote Físico para dar baixa *", list(opcoes_baixa.keys()))
+                        
+                        c1, c2 = st.columns(2)
+                        qtd_retirada = c1.number_input("Quantidade a abater do estoque *", min_value=0.01, step=0.1)
+                        tipo_baixa = c2.selectbox("Tipo de Movimento", ["Consumo", "Descarte (Vencido/Contaminado)", "Ajuste de Inventário"])
+                        obs = st.text_area("Justificativa / Ensaio onde foi utilizado")
+                        
+                        if st.form_submit_button("Confirmar Baixa"):
+                            lote_id = opcoes_baixa[lote_sel]
+                            lote_bd = supabase.table("reagentes_lotes").select("quantidade_atual, status, data_abertura").eq("id", lote_id).execute().data[0]
+                            qtd_atual_bd = float(lote_bd["quantidade_atual"])
+                            
+                            if qtd_retirada > qtd_atual_bd:
+                                st.error(f"Quantidade insuficiente! Disponível: {qtd_atual_bd}.")
+                            else:
+                                nova_qtd = qtd_atual_bd - qtd_retirada
+                                novo_status = lote_bd["status"]
+                                nova_abertura = lote_bd["data_abertura"]
+                                
+                                if novo_status == "Aprovado" and tipo_baixa == "Consumo":
+                                    novo_status = "Em Uso"
+                                    nova_abertura = str(datetime.now().date())
+                                    
+                                if nova_qtd <= 0 or tipo_baixa == "Descarte (Vencido/Contaminado)":
+                                    novo_status = "Esgotado/Descartado"
+                                    nova_qtd = 0.0
+
+                                supabase.table("reagentes_lotes").update({
+                                    "quantidade_atual": nova_qtd, "status": novo_status, "data_abertura": nova_abertura
+                                }).eq("id", lote_id).execute()
+                                
+                                supabase.table("reagentes_movimentacao").insert({
+                                    "lote_id": lote_id, "tipo_movimento": tipo_baixa, "quantidade": float(-qtd_retirada),
+                                    "observacao": obs, "registrado_por": user_email
+                                }).execute()
+                                
+                                st.success(f"Baixa de {qtd_retirada} registrada. Novo saldo: {nova_qtd}.")
+                                st.rerun()
+                else:
+                    st.info("Nenhum lote com saldo disponível para uso.")
+            else:
+                st.info("Não há lotes físicos cadastrados.")
 
 # ==============================================================================
-# 5. GERENCIAR EQUIPAMENTOS
+# 5. GERENCIAR EQUIPAMENTOS (Admin / Tecnico)
 # ==============================================================================
-elif menu == "📝 Gerenciar Equipamentos":
+elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     df_eq_exist = pd.DataFrame(supabase.table("equipamentos").select("*").execute().data or [])
     
-    abas = ["📝 Cadastrar / Editar", "📁 Importação em Massa"] + (["🗑️ Excluir"] if st.session_state["user_perfil"] == "Admin" else [])
+    abas = ["📝 Cadastrar / Editar", "📁 Importação em Massa"]
+    if perfil == "Admin":
+        abas.append("🗑️ Excluir")
+        
     tabs = st.tabs(abas)
     
     with tabs[0]:
@@ -729,8 +740,9 @@ elif menu == "📝 Gerenciar Equipamentos":
             except Exception as e:
                 st.error(f"Erro: {e}")
 
-    if st.session_state["user_perfil"] == "Admin" and len(tabs) > 2:
+    if perfil == "Admin" and len(tabs) > 2:
         with tabs[2]:
+            st.warning("Atenção: A exclusão de um equipamento é permanente.")
             if not df_eq_exist.empty:
                 tag_exc = st.selectbox("Selecione a TAG:", df_eq_exist["tag"].tolist())
                 if st.button("🗑️ Excluir Permanentemente") and st.checkbox("Confirmo a exclusão"):
@@ -739,9 +751,9 @@ elif menu == "📝 Gerenciar Equipamentos":
                     st.rerun()
 
 # ==============================================================================
-# 6. CALIBRAÇÕES
+# 6. CALIBRAÇÕES (Admin / Tecnico)
 # ==============================================================================
-elif menu == "📐 Calibrações & Qualificações":
+elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tecnico"]:
     st.header("📐 Registro de Calibração")
     eq_res = supabase.table("equipamentos").select("tag").execute()
     tags = [i["tag"] for i in eq_res.data] if eq_res.data else []
@@ -774,9 +786,9 @@ elif menu == "📐 Calibrações & Qualificações":
                 st.rerun()
 
 # ==============================================================================
-# 7. MANUTENÇÕES
+# 7. MANUTENÇÕES (Admin / Tecnico)
 # ==============================================================================
-elif menu == "🛠️ Manutenções & Intervenções":
+elif menu == "🛠️ Manutenções & Intervenções" and perfil in ["Admin", "Tecnico"]:
     st.header("🛠️ Registro de Manutenção")
     eq_res = supabase.table("equipamentos").select("tag").execute()
     tags = [i["tag"] for i in eq_res.data] if eq_res.data else []
@@ -808,9 +820,9 @@ elif menu == "🛠️ Manutenções & Intervenções":
                 st.rerun()
 
 # ==============================================================================
-# 8. GESTÃO DE ACESSOS E ALERTAS
+# 8. GESTÃO DE ACESSOS E ALERTAS (Apenas Admin)
 # ==============================================================================
-elif menu == "👥 Gestão de Acessos":
+elif menu == "👥 Gestão de Acessos" and perfil == "Admin":
     st.header("👥 Gestão de Usuários e Destinatários de Alertas")
     tab_users, tab_alertas = st.tabs(["👤 Controle de Usuários", "📩 Destinatários de Alertas"])
     

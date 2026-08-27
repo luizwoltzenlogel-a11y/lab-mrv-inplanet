@@ -184,7 +184,6 @@ def upload_pdf(file, prefixo):
 def exibir_mascote():
     for img in ["capivara.jpg", "capy.jpg", "capivara.png"]:
         if os.path.exists(img):
-            # Removido o caption conforme solicitado
             st.sidebar.image(img, use_container_width=True)
             break
 
@@ -325,25 +324,35 @@ if st.session_state["modulo_ativo"] != "Hub":
 
 user_email = st.session_state["user_email"]
 
-# Exibe o título padrão APENAS se não estiver na página principal
 if menu != "🏠 Hub Principal":
     st.title("🧪 Lab Master")
 
 # ==============================================================================
-# 0. HUB PRINCIPAL (REMODELADO)
+# 0. HUB PRINCIPAL
 # ==============================================================================
 if menu == "🏠 Hub Principal":
     
-    # Cabeçalho com Logo da InPlanet e Novo Título
-    st.markdown(f"""
-        <div style="text-align: center; padding-bottom: 3rem; padding-top: 1rem;">
-            <img src="{LOGO_URL}" style="width: 250px; filter: brightness(0) invert(1); margin-bottom: 1.5rem;" />
-            <h1 style="font-size: 3rem; margin-bottom: 0px; color: #FFFFFF;">Lab Master</h1>
-            <h3 style="color: var(--inplanet-green); font-weight: 400; margin-top: 5px;">Sistema de Gestão Laboratorial</h3>
+    # Busca imagem do novo logo da Capivara Lab Master na raiz do projeto
+    logo_capy_hub = None
+    for nome_img in ["logo_labmaster.jpg", "logo_labmaster.png", "logo_labmaster.jpeg", "Quero_um_logo_de_capivara_bpede_minimalista_com_contorno_brn.jpg"]:
+        if os.path.exists(nome_img):
+            logo_capy_hub = nome_img
+            break
+
+    # Renderiza o logo da capivara centralizado no topo do Hub
+    col_lh1, col_lh2, col_lh3 = st.columns([1, 1.1, 1])
+    with col_lh2:
+        if logo_capy_hub:
+            st.image(logo_capy_hub, use_container_width=True)
+        else:
+            st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>Lab Master</h1>", unsafe_allow_html=True)
+            
+    st.markdown("""
+        <div style="text-align: center; padding-bottom: 2rem;">
+            <h3 style="color: var(--inplanet-green); font-weight: 400; margin-top: 0px;">Sistema de Gestão Laboratorial</h3>
         </div>
     """, unsafe_allow_html=True)
     
-    # Estilo CSS forçado para as caixas terem exatamente o mesmo tamanho
     card_style = """
         background-color: var(--inplanet-card); 
         border: 2px solid var(--inplanet-green); 

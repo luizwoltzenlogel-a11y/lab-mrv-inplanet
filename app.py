@@ -45,7 +45,7 @@ st.markdown("""
         border: 2px solid var(--inplanet-green) !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
-        text-transform: uppercase; /* Ajuda visual para tags */
+        text-transform: uppercase;
     }
 
     /* OVERRIDE DA CAIXA DE DATA */
@@ -234,7 +234,7 @@ if not st.session_state.get("autenticado", False):
                     st.warning("Preencha todos os campos.")
     st.stop()
 
-# --- NAVEGAÇÃO E RBAC (CONTROLE DE ACESSO) ---
+# --- NAVEGAÇÃO E RBAC ---
 def selecionar_modulo(nome_modulo, pagina_inicial):
     st.session_state["modulo_ativo"] = nome_modulo
     st.session_state["pagina_ativa"] = pagina_inicial
@@ -323,7 +323,7 @@ if menu == "🏠 Hub Principal":
                 <h1 style="font-size: 3.5rem; margin-bottom: 0.5rem;">📦</h1>
                 <h3 style="color: #F0F5F2; margin-bottom: 0.5rem;">Reagentes & Consumíveis</h3>
                 <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 1.5rem; min-height: 50px;">
-                    Gestão de frascos, reagentes, colunas, filtros, seringas, membranas, controle de validade e Certificados de Análise (CoA).
+                    Gestão de frascos, reagentes, colunas, filtros, seringas, controle de validade e alertas de estoque de segurança.
                 </p>
             </div>
         """, unsafe_allow_html=True)
@@ -489,7 +489,7 @@ elif menu == "📈 Prontuário & Tendências":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 4. REAGENTES E CONSUMÍVEIS (RBAC NAS ABAS)
+# 4. REAGENTES E CONSUMÍVEIS (ALERTA DE ESTOQUE MÍNIMO)
 # ==============================================================================
 elif menu == "📦 Controle de Estoque":
     st.header("📦 Gestão de Reagentes e Consumíveis (Req. 6.6)")
@@ -515,12 +515,12 @@ elif menu == "📦 Controle de Estoque":
             
             if not estoque_atual.empty:
                 df_dash = df_cat.merge(estoque_atual, left_on="id", right_on="reagente_id", how="left").fillna(0)
-                df_dash["Alerta"] = df_dash.apply(lambda r: "🔴 Baixo" if r["quantidade_atual"] <= r["estoque_minimo"] else "✅ OK", axis=1)
+                df_dash["Alerta"] = df_dash.apply(lambda r: "🔴 Baixo (Comprar)" if r["quantidade_atual"] <= r["estoque_minimo"] else "✅ OK", axis=1)
                 
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Produtos Cadastrados", len(df_cat))
                 c2.metric("Lotes Físicos Ativos", len(df_ativos))
-                c3.metric("Abaixo do Mínimo", len(df_dash[df_dash["Alerta"] == "🔴 Baixo"]))
+                c3.metric("Abaixo do Mínimo", len(df_dash[df_dash["Alerta"] == "🔴 Baixo (Comprar)"]))
                 
                 st.subheader("Situação Consolidada de Estoque")
                 st.dataframe(df_dash[["codigo_interno", "nome", "unidade_medida", "quantidade_atual", "estoque_minimo", "Alerta"]].rename(columns={"codigo_interno": "Código", "nome": "Produto", "unidade_medida": "UN", "quantidade_atual": "Qtd Atual", "estoque_minimo": "Mínimo"}), use_container_width=True)
@@ -549,7 +549,7 @@ elif menu == "📦 Controle de Estoque":
                 nome = col1.text_input("Nome do Produto (Seringa, Coluna, etc.) *")
                 cas_number = col2.text_input("CAS Number / Part Number (Opcional)")
                 unidade = col2.selectbox("Unidade de Medida", ["Unidade (Un)", "Caixa (Cx)", "Pacote (Pct)", "Litros (L)", "Mililitros (mL)", "Quilogramas (kg)", "Gramas (g)"])
-                estoque_minimo = col1.number_input("Estoque Mínimo de Alerta", min_value=0.0, step=0.1)
+                estoque_minimo = col1.number_input("Estoque Mínimo de Segurança (Alerta de Compra)", min_value=0.0, step=0.1)
                 armazenamento = col2.selectbox("Condição de Armazenamento", ["Temperatura Ambiente", "Geladeira (2 a 8°C)", "Freezer (-20°C)", "Armário de Inflamáveis", "Armário de Ácidos"])
                 
                 if st.form_submit_button("Salvar Produto no Catálogo"):
@@ -632,8 +632,10 @@ elif menu == "📦 Controle de Estoque":
                         
                         if st.form_submit_button("Confirmar Baixa"):
                             lote_id = opcoes_baixa[lote_sel]
-                            lote_bd = supabase.table("reagentes_lotes").select("quantidade_atual, status, data_abertura").eq("id", lote_id).execute().data[0]
+                            
+                            lote_bd = supabase.table("reagentes_lotes").select("quantidade_atual, status, data_abertura, reagente_id").eq("id", lote_id).execute().data[0]
                             qtd_atual_bd = float(lote_bd["quantidade_atual"])
+                            reagente_id = lote_bd["reagente_id"]
                             
                             if qtd_retirada > qtd_atual_bd:
                                 st.error(f"Quantidade insuficiente! Disponível: {qtd_atual_bd}.")
@@ -650,16 +652,41 @@ elif menu == "📦 Controle de Estoque":
                                     novo_status = "Esgotado/Descartado"
                                     nova_qtd = 0.0
 
+                                # 1. Atualiza o Lote
                                 supabase.table("reagentes_lotes").update({
                                     "quantidade_atual": nova_qtd, "status": novo_status, "data_abertura": nova_abertura
                                 }).eq("id", lote_id).execute()
                                 
+                                # 2. Insere na Movimentação
                                 supabase.table("reagentes_movimentacao").insert({
                                     "lote_id": lote_id, "tipo_movimento": tipo_baixa, "quantidade": float(-qtd_retirada),
                                     "observacao": obs, "registrado_por": user_email
                                 }).execute()
                                 
-                                st.success(f"Baixa de {qtd_retirada} registrada. Novo saldo: {nova_qtd}.")
+                                # --- 3. LÓGICA DE ALERTA DE ESTOQUE DE SEGURANÇA ---
+                                lotes_ativos = supabase.table("reagentes_lotes").select("quantidade_atual").eq("reagente_id", reagente_id).in_("status", ["Aprovado", "Em Uso", "Quarentena"]).execute().data
+                                estoque_total = sum(float(l["quantidade_atual"]) for l in lotes_ativos)
+                                
+                                reag_info = supabase.table("reagentes").select("nome, codigo_interno, estoque_minimo, unidade_medida").eq("id", reagente_id).execute().data[0]
+                                estoque_minimo = float(reag_info["estoque_minimo"])
+                                
+                                if estoque_total <= estoque_minimo:
+                                    nome_produto = reag_info["nome"]
+                                    cod_produto = reag_info["codigo_interno"]
+                                    unidade = reag_info["unidade_medida"]
+                                    
+                                    assunto = f"⚠️ [Lab Master] Alerta de Compra: {cod_produto} - {nome_produto}"
+                                    corpo = f"Prezado Setor de Compras / Gestor,\n\nO produto '{cod_produto} - {nome_produto}' atingiu o nível crítico do estoque de segurança.\n\nEstoque Atual: {estoque_total:.2f} {unidade}\nEstoque de Segurança (Mínimo): {estoque_minimo:.2f} {unidade}\n\nPor favor, providencie a reposição (compra).\n\nÚltima baixa registrada por: {user_email}"
+                                    
+                                    lista_gestores = obter_lista_gestores()
+                                    for gestor in lista_gestores:
+                                        enviar_notificacao_email(gestor, assunto, corpo)
+                                        
+                                    st.warning("⚠️ Estoque de segurança atingido! Alerta de compra enviado aos gestores.")
+                                    time.sleep(2) # Pausa curta para leitura do alerta
+                                else:
+                                    st.success(f"Baixa de {qtd_retirada} registrada com sucesso. Novo saldo do lote: {nova_qtd}.")
+                                
                                 st.rerun()
                 else:
                     st.info("Nenhum lote com saldo disponível para uso.")
@@ -667,7 +694,7 @@ elif menu == "📦 Controle de Estoque":
                 st.info("Não há lotes físicos cadastrados.")
 
 # ==============================================================================
-# 5. GERENCIAR EQUIPAMENTOS (COM REGEX DE TAG AAAA-NNN)
+# 5. GERENCIAR EQUIPAMENTOS (REGRA REGEX: AAAA-NNN)
 # ==============================================================================
 elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
@@ -688,7 +715,6 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
         with st.form("form_equip"):
             c1, c2 = st.columns(2)
             with c1:
-                # Ajuda visual adicionada
                 tag = st.text_input("Tag / Código Interno *", value=str(def_v.get("tag", "")), placeholder="Ex: BALA-001", help="Padrão obrigatório: 4 letras, um hífen e 3 números (ex: ICPO-001)")
                 nome = st.text_input("Nome do Equipamento *", value=str(def_v.get("nome", "")))
                 marca = st.text_input("Marca / Fabricante", value=str(def_v.get("marca", "")))
@@ -701,9 +727,7 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                 status = st.selectbox("Status Operacional", op_st, index=op_st.index(def_v.get("status", "Operacional")) if def_v.get("status") in op_st else 0)
             
             if st.form_submit_button("Salvar Equipamento"):
-                tag = tag.strip().upper() # Converte para maiúsculo
-                
-                # VALIDAÇÃO REGEX: AAAA-NNN
+                tag = tag.strip().upper()
                 if not re.match(r'^[A-Z]{4}-\d{3}$', tag):
                     st.error("❌ A Tag deve seguir o padrão rigoroso de 4 letras, um hífen e 3 números (Ex: BALA-001).")
                 elif tag and nome:
@@ -726,8 +750,6 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                     
                     for _, r in df_imp.iterrows():
                         tag_imp = str(r["tag"]).strip().upper()
-                        
-                        # VERIFICAÇÃO NA IMPORTAÇÃO EM MASSA
                         if not re.match(r'^[A-Z]{4}-\d{3}$', tag_imp):
                             erros_tag.append(tag_imp)
                             continue
@@ -744,7 +766,7 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                         
                     if registros:
                         supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()
-                        st.success(f"{len(registros)} equipamentos importados com sucesso no padrão correto!")
+                        st.success(f"{len(registros)} equipamentos importados com sucesso!")
                         st.rerun()
             except Exception as e:
                 st.error(f"Erro: {e}")
@@ -760,7 +782,7 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                     st.rerun()
 
 # ==============================================================================
-# 6. CALIBRAÇÕES (Admin / Tecnico)
+# 6. CALIBRAÇÕES
 # ==============================================================================
 elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tecnico"]:
     st.header("📐 Registro de Calibração")
@@ -795,7 +817,7 @@ elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tec
                 st.rerun()
 
 # ==============================================================================
-# 7. MANUTENÇÕES (Admin / Tecnico)
+# 7. MANUTENÇÕES
 # ==============================================================================
 elif menu == "🛠️ Manutenções & Intervenções" and perfil in ["Admin", "Tecnico"]:
     st.header("🛠️ Registro de Manutenção")
@@ -829,7 +851,7 @@ elif menu == "🛠️ Manutenções & Intervenções" and perfil in ["Admin", "T
                 st.rerun()
 
 # ==============================================================================
-# 8. GESTÃO DE ACESSOS E ALERTAS (Apenas Admin)
+# 8. GESTÃO DE ACESSOS E ALERTAS
 # ==============================================================================
 elif menu == "👥 Gestão de Acessos" and perfil == "Admin":
     st.header("👥 Gestão de Usuários e Destinatários de Alertas")

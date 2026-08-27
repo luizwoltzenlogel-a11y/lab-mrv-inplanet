@@ -184,7 +184,8 @@ def upload_pdf(file, prefixo):
 def exibir_mascote():
     for img in ["capivara.jpg", "capy.jpg", "capivara.png"]:
         if os.path.exists(img):
-            st.sidebar.image(img, caption="Mascote Lab Master 🧪", use_container_width=True)
+            # Removido o caption conforme solicitado
+            st.sidebar.image(img, use_container_width=True)
             break
 
 # --- GESTÃO DE SESSÃO E TIMEOUT ---
@@ -324,20 +325,45 @@ if st.session_state["modulo_ativo"] != "Hub":
 
 user_email = st.session_state["user_email"]
 
-st.title("🧪 Lab Master")
+# Exibe o título padrão APENAS se não estiver na página principal
+if menu != "🏠 Hub Principal":
+    st.title("🧪 Lab Master")
 
 # ==============================================================================
-# 0. HUB PRINCIPAL
+# 0. HUB PRINCIPAL (REMODELADO)
 # ==============================================================================
 if menu == "🏠 Hub Principal":
-    st.markdown("<h2 style='text-align: center; margin-bottom: 2rem;'>🧪 Central de Gestão Laboratorial</h2>", unsafe_allow_html=True)
+    
+    # Cabeçalho com Logo da InPlanet e Novo Título
+    st.markdown(f"""
+        <div style="text-align: center; padding-bottom: 3rem; padding-top: 1rem;">
+            <img src="{LOGO_URL}" style="width: 250px; filter: brightness(0) invert(1); margin-bottom: 1.5rem;" />
+            <h1 style="font-size: 3rem; margin-bottom: 0px; color: #FFFFFF;">Lab Master</h1>
+            <h3 style="color: var(--inplanet-green); font-weight: 400; margin-top: 5px;">Sistema de Gestão Laboratorial</h3>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Estilo CSS forçado para as caixas terem exatamente o mesmo tamanho
+    card_style = """
+        background-color: var(--inplanet-card); 
+        border: 2px solid var(--inplanet-green); 
+        border-radius: 12px; 
+        padding: 2rem; 
+        text-align: center;
+        height: 280px;
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center;
+        align-items: center;
+    """
+    
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("""
-            <div style="background-color: var(--inplanet-card); border: 2px solid var(--inplanet-green); border-radius: 12px; padding: 2rem; text-align: center;">
+        st.markdown(f"""
+            <div style="{card_style}">
                 <h1 style="font-size: 3.5rem; margin-bottom: 0.5rem;">🔬</h1>
                 <h3 style="color: #F0F5F2; margin-bottom: 0.5rem;">Gestão de Equipamentos</h3>
-                <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 1.5rem; min-height: 50px;">
+                <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 0;">
                     Controle de ativos, inventário operacional, calibrações, manutenções, auditoria ISO 17025 e planejamento logístico.
                 </p>
             </div>
@@ -346,11 +372,11 @@ if menu == "🏠 Hub Principal":
         st.button("Acessar Módulo de Equipamentos ➔", on_click=selecionar_modulo, args=("Equipamentos", "📌 Inventário & Status"), use_container_width=True, key="btn_hub_equip")
 
     with col2:
-        st.markdown("""
-            <div style="background-color: var(--inplanet-card); border: 2px solid var(--inplanet-green); border-radius: 12px; padding: 2rem; text-align: center;">
+        st.markdown(f"""
+            <div style="{card_style}">
                 <h1 style="font-size: 3.5rem; margin-bottom: 0.5rem;">📦</h1>
                 <h3 style="color: #F0F5F2; margin-bottom: 0.5rem;">Reagentes & Consumíveis</h3>
-                <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 1.5rem; min-height: 50px;">
+                <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 0;">
                     Gestão de frascos, reagentes, colunas, filtros, seringas, controle de validade e alertas de estoque de segurança.
                 </p>
             </div>
@@ -534,7 +560,7 @@ elif menu == "📈 Prontuário & Tendências":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 4. REAGENTES E CONSUMÍVEIS (ALERTA DE ESTOQUE MÍNIMO)
+# 4. REAGENTES E CONSUMÍVEIS
 # ==============================================================================
 elif menu == "📦 Controle de Estoque":
     st.header("📦 Gestão de Reagentes e Consumíveis (Req. 6.6)")
@@ -912,10 +938,8 @@ elif menu == "👥 Gestão de Acessos" and perfil == "Admin":
             
             if st.form_submit_button("Salvar Usuário"):
                 if novo_email.endswith("@inplanet.earth") and nova_senha:
-                    # 1. Salva no banco com senha em Hash
                     supabase.table("usuarios").upsert({"email": novo_email, "perfil": novo_perfil, "senha": hash_senha(nova_senha)}, on_conflict="email").execute()
                     
-                    # 2. Dispara e-mail de Boas-Vindas com credenciais (senha em texto limpo apenas no e-mail)
                     assunto_bem_vindo = "🧪 Bem-vindo ao Lab Master - Suas credenciais de acesso"
                     corpo_bem_vindo = f"""Olá!
 

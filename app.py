@@ -15,7 +15,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 TEMPO_INATIVIDADE = 600
 
-# --- CSS DE ALTO CONTRASTE E ESTILIZAÇÃO DOS HUB CARDS ---
+# --- CSS DEFINITIVO DE ALTO CONTRASTE ---
 st.markdown("""
     <style>
     :root {
@@ -31,7 +31,7 @@ st.markdown("""
         padding: 2rem !important;
     }
 
-    /* INPUTS GERAIS */
+    /* INPUTS GERAIS (FUNDO BRANCO, TEXTO PRETO, BORDA VERDE) */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -46,7 +46,7 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* OVERRIDE DA CAIXA DE DATA */
+    /* CAIXA DE DATA */
     div[data-testid="stDateInput"] { background-color: transparent !important; }
     div[data-testid="stDateInput"] *,
     div[data-testid="stDateInput"] div,
@@ -232,6 +232,17 @@ if not st.session_state.get("autenticado", False):
                     st.warning("Preencha todos os campos.")
     st.stop()
 
+# --- CALLBACKS PARA TROCA DE NAVEGAÇÃO SEGURA (EVITA O BUG) ---
+def selecionar_modulo(nome_modulo, pagina_inicial):
+    st.session_state["modulo_ativo"] = nome_modulo
+    st.session_state["pagina_ativa"] = pagina_inicial
+
+# Inicialização dos estados de navegação
+if "modulo_ativo" not in st.session_state:
+    st.session_state["modulo_ativo"] = "Hub"
+if "pagina_ativa" not in st.session_state:
+    st.session_state["pagina_ativa"] = "🏠 Hub Principal"
+
 # --- BARRA LATERAL ---
 home_link = f"/?session_user={st.session_state['user_email']}&session_perfil={st.session_state['user_perfil']}"
 st.sidebar.markdown(f"""
@@ -253,24 +264,40 @@ if st.sidebar.button("🚪 Sair do Sistema"):
 
 st.sidebar.divider()
 
-# DEFINIÇÃO DO MENU LATERAL
-menus_disponiveis = [
-    "🏠 Hub Principal", 
-    "📌 Equipamentos - Inventário", 
-    "🛡️ Modo Auditoria (ISO 17025)", 
-    "📈 Prontuário & Tendências", 
-    "📦 Reagentes & Consumíveis"
-]
-if st.session_state["user_perfil"] in ["Admin", "Tecnico"]:
-    menus_disponiveis.extend(["📝 Gerenciar Equipamentos", "📐 Calibrações & Qualificações", "🛠️ Manutenções & Intervenções"])
-if st.session_state["user_perfil"] == "Admin":
-    menus_disponiveis.append("👥 Gestão de Acessos")
+# DEFINIÇÃO DINÂMICA DO MENU LATERAL CONFORME O MÓDULO SELECIONADO
+perfil = st.session_state["user_perfil"]
 
-# Sincronização direta de estado via radio key
-if "radio_menu" not in st.session_state:
-    st.session_state["radio_menu"] = "🏠 Hub Principal"
+if st.session_state["modulo_ativo"] == "Equipamentos":
+    st.sidebar.markdown("### 🔬 Módulo Equipamentos")
+    opcoes_menu = ["📌 Inventário & Status", "🛡️ Modo Auditoria (ISO 17025)", "📈 Prontuário & Tendências"]
+    if perfil in ["Admin", "Tecnico"]:
+        opcoes_menu.extend(["📝 Gerenciar Equipamentos", "📐 Calibrações & Qualificações", "🛠️ Manutenções & Intervenções"])
+    if perfil == "Admin":
+        opcoes_menu.append("👥 Gestão de Acessos")
+        
+elif st.session_state["modulo_ativo"] == "Reagentes":
+    st.sidebar.markdown("### 📦 Módulo Reagentes")
+    opcoes_menu = ["📊 Painel de Controle de Estoque"]
+    if perfil == "Admin":
+        opcoes_menu.append("👥 Gestão de Acessos")
+        
+else: # HUB PRINCIPAL
+    st.sidebar.markdown("### 🏠 Visão Geral")
+    opcoes_menu = ["🏠 Hub Principal"]
+    if perfil == "Admin":
+        opcoes_menu.append("👥 Gestão de Acessos")
 
-menu = st.sidebar.radio("Navegação", menus_disponiveis, key="radio_menu")
+# Renderização do menu filtrado
+if st.session_state["pagina_ativa"] not in opcoes_menu:
+    st.session_state["pagina_ativa"] = opcoes_menu[0]
+
+menu = st.sidebar.radio("Navegação", opcoes_menu, index=opcoes_menu.index(st.session_state["pagina_ativa"]), key="radio_dinamico")
+st.session_state["pagina_ativa"] = menu
+
+if st.session_state["modulo_ativo"] != "Hub":
+    st.sidebar.divider()
+    st.sidebar.button("⬅️ Voltar ao Hub Principal", on_click=selecionar_modulo, args=("Hub", "🏠 Hub Principal"), use_container_width=True)
+
 user_email = st.session_state["user_email"]
 
 st.title("🧪 Lab Master")
@@ -294,9 +321,7 @@ if menu == "🏠 Hub Principal":
             </div>
         """, unsafe_allow_html=True)
         st.write("")
-        if st.button("Acessar Módulo de Equipamentos ➔", use_container_width=True, key="btn_hub_equip"):
-            st.session_state["radio_menu"] = "📌 Equipamentos - Inventário"
-            st.rerun()
+        st.button("Acessar Módulo de Equipamentos ➔", on_click=selecionar_modulo, args=("Equipamentos", "📌 Inventário & Status"), use_container_width=True, key="btn_hub_equip")
 
     with col2:
         st.markdown("""
@@ -309,14 +334,12 @@ if menu == "🏠 Hub Principal":
             </div>
         """, unsafe_allow_html=True)
         st.write("")
-        if st.button("Acessar Módulo de Reagentes & Consumíveis ➔", use_container_width=True, key="btn_hub_reag"):
-            st.session_state["radio_menu"] = "📦 Reagentes & Consumíveis"
-            st.rerun()
+        st.button("Acessar Módulo de Reagentes & Consumíveis ➔", on_click=selecionar_modulo, args=("Reagentes", "📊 Painel de Controle de Estoque"), use_container_width=True, key="btn_hub_reag")
 
 # ==============================================================================
 # 1. EQUIPAMENTOS - INVENTÁRIO
 # ==============================================================================
-elif menu == "📌 Equipamentos - Inventário":
+elif menu == "📌 Inventário & Status":
     st.header("📌 Inventário Geral e Status Operacional")
     res = supabase.table("equipamentos").select("*").execute()
     df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
@@ -474,7 +497,7 @@ elif menu == "📈 Prontuário & Tendências":
 # ==============================================================================
 # 4. REAGENTES E CONSUMÍVEIS
 # ==============================================================================
-elif menu == "📦 Reagentes & Consumíveis":
+elif menu == "📊 Painel de Controle de Estoque":
     st.header("📦 Gestão de Reagentes e Consumíveis (Req. 6.6)")
     
     tab_dash, tab_cat, tab_in, tab_out = st.tabs([

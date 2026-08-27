@@ -112,7 +112,7 @@ st.markdown("""
         background-color: #487F63 !important; 
     }
 
-    /* LABELS */
+    /* LABELS E EXPANDERS (ESQUECI A SENHA) */
     div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
     div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
     div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
@@ -121,6 +121,12 @@ st.markdown("""
         -webkit-text-fill-color: #F0F5F2 !important;
         background-color: transparent !important;
         font-weight: 600 !important;
+    }
+    
+    div[data-testid="stExpander"] details summary p {
+        color: #F0F5F2 !important;
+        font-weight: 600 !important;
+        font-size: 1.05rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -232,6 +238,28 @@ if not st.session_state.get("autenticado", False):
                         st.error("❌ E-mail ou senha incorretos.")
                 else:
                     st.warning("Preencha todos os campos.")
+        
+        with st.expander("🔑 Esqueci minha senha"):
+            with st.form("reset_form"):
+                email_reset = st.text_input("Digite seu E-mail Institucional para solicitar o reset")
+                if st.form_submit_button("Solicitar Nova Senha", use_container_width=True):
+                    if email_reset:
+                        gestores = obter_lista_gestores()
+                        assunto = f"🔐 Solicitação de Reset de Senha: {email_reset}"
+                        corpo = f"Atenção Administrador,\n\nO usuário '{email_reset}' solicitou o reset de senha de acesso ao Lab Master.\n\nAcesse o sistema, vá até o menu 'Gestão de Acessos' e atualize a senha deste usuário."
+                        
+                        enviado = False
+                        for gestor in gestores:
+                            enviar_notificacao_email(gestor, assunto, corpo)
+                            enviado = True
+                            
+                        if enviado:
+                            st.success("✅ Solicitação enviada! Um administrador entrará em contato em breve.")
+                            time.sleep(3)
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Por favor, informe o seu e-mail institucional.")
+                        
     st.stop()
 
 # --- NAVEGAÇÃO E RBAC ---
@@ -411,8 +439,25 @@ elif menu == "🛡️ Modo Auditoria (ISO 17025)":
                 'data_venc': 'Vencimento', 'certificado': 'Certificado nº', 'pdf_url': 'Documento'
             })
             
+            col_f1, col_f2 = st.columns([2, 1])
+            termo_busca = col_f1.text_input("🔍 Pesquisar por TAG, Nome, Marca ou Nº de Série:", placeholder="Ex: BALA-001, Balança, Shimadzu...")
+            
+            opcoes_aptidao = df_final["Aptidão Metrológica"].dropna().unique().tolist()
+            filtro_aptidao = col_f2.multiselect("Filtrar por Aptidão Metrológica:", options=opcoes_aptidao, default=opcoes_aptidao)
+            
+            df_filtrado = df_final[df_final["Aptidão Metrológica"].isin(filtro_aptidao)]
+            
+            if termo_busca:
+                termo = termo_busca.strip().lower()
+                df_filtrado = df_filtrado[
+                    df_filtrado['TAG'].astype(str).str.lower().str.contains(termo, na=False) |
+                    df_filtrado['Equipamento'].astype(str).str.lower().str.contains(termo, na=False) |
+                    df_filtrado['Marca'].astype(str).str.lower().str.contains(termo, na=False) |
+                    df_filtrado['Nº Série'].astype(str).str.lower().str.contains(termo, na=False)
+                ]
+            
             st.dataframe(
-                df_final, 
+                df_filtrado, 
                 column_config={"Documento": st.column_config.LinkColumn("Certificado PDF")}, 
                 use_container_width=True
             )
@@ -652,18 +697,15 @@ elif menu == "📦 Controle de Estoque":
                                     novo_status = "Esgotado/Descartado"
                                     nova_qtd = 0.0
 
-                                # 1. Atualiza o Lote
                                 supabase.table("reagentes_lotes").update({
                                     "quantidade_atual": nova_qtd, "status": novo_status, "data_abertura": nova_abertura
                                 }).eq("id", lote_id).execute()
                                 
-                                # 2. Insere na Movimentação
                                 supabase.table("reagentes_movimentacao").insert({
                                     "lote_id": lote_id, "tipo_movimento": tipo_baixa, "quantidade": float(-qtd_retirada),
                                     "observacao": obs, "registrado_por": user_email
                                 }).execute()
                                 
-                                # --- 3. LÓGICA DE ALERTA DE ESTOQUE DE SEGURANÇA ---
                                 lotes_ativos = supabase.table("reagentes_lotes").select("quantidade_atual").eq("reagente_id", reagente_id).in_("status", ["Aprovado", "Em Uso", "Quarentena"]).execute().data
                                 estoque_total = sum(float(l["quantidade_atual"]) for l in lotes_ativos)
                                 
@@ -683,7 +725,7 @@ elif menu == "📦 Controle de Estoque":
                                         enviar_notificacao_email(gestor, assunto, corpo)
                                         
                                     st.warning("⚠️ Estoque de segurança atingido! Alerta de compra enviado aos gestores.")
-                                    time.sleep(2) # Pausa curta para leitura do alerta
+                                    time.sleep(2)
                                 else:
                                     st.success(f"Baixa de {qtd_retirada} registrada com sucesso. Novo saldo do lote: {nova_qtd}.")
                                 
@@ -694,7 +736,7 @@ elif menu == "📦 Controle de Estoque":
                 st.info("Não há lotes físicos cadastrados.")
 
 # ==============================================================================
-# 5. GERENCIAR EQUIPAMENTOS (REGRA REGEX: AAAA-NNN)
+# 5. GERENCIAR EQUIPAMENTOS
 # ==============================================================================
 elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
@@ -867,10 +909,37 @@ elif menu == "👥 Gestão de Acessos" and perfil == "Admin":
             novo_email = col1.text_input("E-mail (@inplanet.earth)")
             novo_perfil = col2.selectbox("Perfil", ["Leitura", "Tecnico", "Admin"])
             nova_senha = col3.text_input("Senha", type="password")
+            
             if st.form_submit_button("Salvar Usuário"):
                 if novo_email.endswith("@inplanet.earth") and nova_senha:
+                    # 1. Salva no banco com senha em Hash
                     supabase.table("usuarios").upsert({"email": novo_email, "perfil": novo_perfil, "senha": hash_senha(nova_senha)}, on_conflict="email").execute()
-                    st.success("Usuário salvo!")
+                    
+                    # 2. Dispara e-mail de Boas-Vindas com credenciais (senha em texto limpo apenas no e-mail)
+                    assunto_bem_vindo = "🧪 Bem-vindo ao Lab Master - Suas credenciais de acesso"
+                    corpo_bem_vindo = f"""Olá!
+
+Você foi cadastrado no sistema Lab Master - InPlanet LMS.
+
+O Lab Master é a nossa plataforma rigorosa de gestão laboratorial, focada na conformidade com a ISO/IEC 17025. Nela nós controlamos:
+- Inventário e status operacional de Equipamentos;
+- Calibrações, Manutenções e Qualificações;
+- Estoque de Reagentes, Consumíveis e Certificados de Análise (CoA).
+
+Suas credenciais de acesso são:
+👤 E-mail (Login): {novo_email}
+🔑 Senha Temporária: {nova_senha}
+🛡️ Nível de Acesso: {novo_perfil}
+
+⚠️ Atenção: Por questões de segurança, sua sessão será encerrada automaticamente após 10 minutos de inatividade na bancada.
+
+Bom trabalho!
+Equipe Lab Master / InPlanet"""
+
+                    enviar_notificacao_email(novo_email, assunto_bem_vindo, corpo_bem_vindo)
+                    
+                    st.success("Usuário salvo e e-mail de boas-vindas com as credenciais enviado!")
+                    time.sleep(2)
                     st.rerun()
                 else:
                     st.error("Preencha um e-mail @inplanet.earth e uma senha válida.")

@@ -2,6 +2,7 @@ import hashlib
 import os
 import smtplib
 import time
+import re
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -15,7 +16,7 @@ st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout=
 LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 TEMPO_INATIVIDADE = 600
 
-# --- CSS DE ALTO CONTRASTE ---
+# --- CSS DE ALTO CONTRASTE E ESTILIZAÇÃO DOS HUB CARDS ---
 st.markdown("""
     <style>
     :root {
@@ -44,6 +45,7 @@ st.markdown("""
         border: 2px solid var(--inplanet-green) !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
+        text-transform: uppercase; /* Ajuda visual para tags */
     }
 
     /* OVERRIDE DA CAIXA DE DATA */
@@ -264,32 +266,24 @@ st.sidebar.divider()
 
 perfil = st.session_state["user_perfil"]
 
-# CONSTRUÇÃO DO MENU BASEADA EM PERMISSÕES (RBAC)
 if st.session_state["modulo_ativo"] == "Equipamentos":
     st.sidebar.markdown("### 🔬 Módulo Equipamentos")
     opcoes_menu = ["📌 Inventário & Status", "🛡️ Modo Auditoria (ISO 17025)", "📈 Prontuário & Tendências"]
-    
-    # Técnicos e Admins veem opções operacionais
     if perfil in ["Admin", "Tecnico"]:
         opcoes_menu.extend(["📝 Gerenciar Equipamentos", "📐 Calibrações & Qualificações", "🛠️ Manutenções & Intervenções"])
-    
     if perfil == "Admin":
         opcoes_menu.append("👥 Gestão de Acessos")
-        
 elif st.session_state["modulo_ativo"] == "Reagentes":
     st.sidebar.markdown("### 📦 Módulo Reagentes")
     opcoes_menu = ["📦 Controle de Estoque"]
-    
     if perfil == "Admin":
         opcoes_menu.append("👥 Gestão de Acessos")
-        
 else: 
     st.sidebar.markdown("### 🏠 Visão Geral")
     opcoes_menu = ["🏠 Hub Principal"]
     if perfil == "Admin":
         opcoes_menu.append("👥 Gestão de Acessos")
 
-# Sincroniza menu ativo
 if st.session_state["pagina_ativa"] not in opcoes_menu:
     st.session_state["pagina_ativa"] = opcoes_menu[0]
 
@@ -305,13 +299,11 @@ user_email = st.session_state["user_email"]
 st.title("🧪 Lab Master")
 
 # ==============================================================================
-# 0. HUB PRINCIPAL (MENU INICIAL)
+# 0. HUB PRINCIPAL
 # ==============================================================================
 if menu == "🏠 Hub Principal":
     st.markdown("<h2 style='text-align: center; margin-bottom: 2rem;'>🧪 Central de Gestão Laboratorial</h2>", unsafe_allow_html=True)
-    
     col1, col2 = st.columns(2)
-    
     with col1:
         st.markdown("""
             <div style="background-color: var(--inplanet-card); border: 2px solid var(--inplanet-green); border-radius: 12px; padding: 2rem; text-align: center;">
@@ -339,7 +331,7 @@ if menu == "🏠 Hub Principal":
         st.button("Acessar Módulo de Reagentes & Consumíveis ➔", on_click=selecionar_modulo, args=("Reagentes", "📦 Controle de Estoque"), use_container_width=True, key="btn_hub_reag")
 
 # ==============================================================================
-# 1. EQUIPAMENTOS - INVENTÁRIO (Liberado p/ Todos)
+# 1. EQUIPAMENTOS - INVENTÁRIO
 # ==============================================================================
 elif menu == "📌 Inventário & Status":
     st.header("📌 Inventário Geral e Status Operacional")
@@ -388,7 +380,7 @@ elif menu == "📌 Inventário & Status":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 2. MODO AUDITORIA (Liberado p/ Todos)
+# 2. MODO AUDITORIA
 # ==============================================================================
 elif menu == "🛡️ Modo Auditoria (ISO 17025)":
     st.header("🛡️ Visão de Conformidade Metrológica - Auditoria")
@@ -430,7 +422,7 @@ elif menu == "🛡️ Modo Auditoria (ISO 17025)":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 3. PRONTUÁRIO & TENDÊNCIAS (Liberado p/ Todos)
+# 3. PRONTUÁRIO & TENDÊNCIAS
 # ==============================================================================
 elif menu == "📈 Prontuário & Tendências":
     st.header("📈 Prontuário do Equipamento e Análise de Tendências")
@@ -502,7 +494,6 @@ elif menu == "📈 Prontuário & Tendências":
 elif menu == "📦 Controle de Estoque":
     st.header("📦 Gestão de Reagentes e Consumíveis (Req. 6.6)")
     
-    # Criação dinâmica de abas dependendo do Perfil
     abas_reag = ["📊 Dashboard & Alertas", "📋 Catálogo de Produtos"]
     if perfil in ["Admin", "Tecnico"]:
         abas_reag.extend(["📥 Entrada de Lotes (CoA)", "🧪 Consumo / Baixa"])
@@ -516,9 +507,7 @@ elif menu == "📦 Controle de Estoque":
         df_lotes = pd.DataFrame(res_lotes.data or [])
     except Exception:
         df_cat, df_lotes = pd.DataFrame(), pd.DataFrame()
-        st.warning("⚠️ Rode os scripts SQL no Supabase para criar as tabelas de estoque.")
 
-    # TAB: DASHBOARD (Todos)
     with tabs[0]:
         if not df_cat.empty and not df_lotes.empty:
             df_ativos = df_lotes[df_lotes["status"].isin(["Aprovado", "Em Uso", "Quarentena"])]
@@ -551,14 +540,13 @@ elif menu == "📦 Controle de Estoque":
         else:
             st.info("Cadastre produtos e insira lotes para visualizar o Dashboard.")
 
-    # TAB: CATÁLOGO
     with tabs[1]:
         if perfil in ["Admin", "Tecnico"]:
             st.subheader("Cadastrar Novo Produto / Consumível")
             with st.form("form_cat", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 codigo_interno = col1.text_input("Código Interno (ex: REAG-001, FILT-01) *")
-                nome = col1.text_input("Nome do Reagente / Consumível (Seringa, Coluna, etc.) *")
+                nome = col1.text_input("Nome do Produto (Seringa, Coluna, etc.) *")
                 cas_number = col2.text_input("CAS Number / Part Number (Opcional)")
                 unidade = col2.selectbox("Unidade de Medida", ["Unidade (Un)", "Caixa (Cx)", "Pacote (Pct)", "Litros (L)", "Mililitros (mL)", "Quilogramas (kg)", "Gramas (g)"])
                 estoque_minimo = col1.number_input("Estoque Mínimo de Alerta", min_value=0.0, step=0.1)
@@ -576,14 +564,13 @@ elif menu == "📦 Controle de Estoque":
                     else:
                         st.error("Preencha Código Interno e Nome.")
         else:
-            st.info("🔒 Modo Leitura: Você pode consultar o catálogo abaixo, mas não tem permissão para inserir novos itens.")
+            st.info("🔒 Modo Leitura: Consulta de catálogo. Você não tem permissão para inserir novos itens.")
 
         if not df_cat.empty:
             st.divider()
             st.subheader("Catálogo Existente")
             st.dataframe(df_cat[["codigo_interno", "nome", "cas_number", "unidade_medida", "estoque_minimo", "armazenamento"]], use_container_width=True)
 
-    # TABS: ENTRADA E CONSUMO (Apenas Admin/Técnico)
     if perfil in ["Admin", "Tecnico"]:
         with tabs[2]:
             st.subheader("Dar Entrada em Lote / Frasco Físico")
@@ -680,16 +667,14 @@ elif menu == "📦 Controle de Estoque":
                 st.info("Não há lotes físicos cadastrados.")
 
 # ==============================================================================
-# 5. GERENCIAR EQUIPAMENTOS (Admin / Tecnico)
+# 5. GERENCIAR EQUIPAMENTOS (COM REGEX DE TAG AAAA-NNN)
 # ==============================================================================
 elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
     df_eq_exist = pd.DataFrame(supabase.table("equipamentos").select("*").execute().data or [])
     
     abas = ["📝 Cadastrar / Editar", "📁 Importação em Massa"]
-    if perfil == "Admin":
-        abas.append("🗑️ Excluir")
-        
+    if perfil == "Admin": abas.append("🗑️ Excluir")
     tabs = st.tabs(abas)
     
     with tabs[0]:
@@ -703,8 +688,9 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
         with st.form("form_equip"):
             c1, c2 = st.columns(2)
             with c1:
-                tag = st.text_input("Tag / Código Interno", value=str(def_v.get("tag", "")))
-                nome = st.text_input("Nome do Equipamento", value=str(def_v.get("nome", "")))
+                # Ajuda visual adicionada
+                tag = st.text_input("Tag / Código Interno *", value=str(def_v.get("tag", "")), placeholder="Ex: BALA-001", help="Padrão obrigatório: 4 letras, um hífen e 3 números (ex: ICPO-001)")
+                nome = st.text_input("Nome do Equipamento *", value=str(def_v.get("nome", "")))
                 marca = st.text_input("Marca / Fabricante", value=str(def_v.get("marca", "")))
                 op_mod = ["Envio Externo", "In-Loco", "Qualificação OQ/PQ"]
                 modalidade = st.selectbox("Modalidade de Serviço", op_mod, index=op_mod.index(def_v.get("modalidade_calibracao", "Envio Externo")) if def_v.get("modalidade_calibracao") in op_mod else 0)
@@ -715,11 +701,18 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                 status = st.selectbox("Status Operacional", op_st, index=op_st.index(def_v.get("status", "Operacional")) if def_v.get("status") in op_st else 0)
             
             if st.form_submit_button("Salvar Equipamento"):
-                if tag and nome:
+                tag = tag.strip().upper() # Converte para maiúsculo
+                
+                # VALIDAÇÃO REGEX: AAAA-NNN
+                if not re.match(r'^[A-Z]{4}-\d{3}$', tag):
+                    st.error("❌ A Tag deve seguir o padrão rigoroso de 4 letras, um hífen e 3 números (Ex: BALA-001).")
+                elif tag and nome:
                     dado = {"tag": tag, "nome": nome, "marca": marca, "modelo": modelo, "serial_number": serial_number, "status": status, "modalidade_calibracao": modalidade, "registrado_por": user_email}
                     supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
-                    st.success(f"Equipamento {tag} gravado!")
+                    st.success(f"Equipamento {tag} gravado com sucesso!")
                     st.rerun()
+                else:
+                    st.error("Preencha a Tag e o Nome.")
 
     with tabs[1]:
         arquivo = st.file_uploader("Suba uma planilha (.csv ou .xlsx)", type=["csv", "xlsx"])
@@ -728,15 +721,31 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                 df_imp = pd.read_csv(arquivo) if arquivo.name.endswith(".csv") else pd.read_excel(arquivo)
                 st.dataframe(df_imp.head(), use_container_width=True)
                 if st.button("🚀 Confirmar Importação") and "tag" in df_imp.columns and "nome" in df_imp.columns:
-                    registros = [{
-                        "tag": str(r["tag"]).strip(), "nome": str(r["nome"]).strip(),
-                        "marca": str(r.get("marca", "")), "modelo": str(r.get("modelo", "")),
-                        "serial_number": str(r.get("serial_number", "")), "status": str(r.get("status", "Operacional")),
-                        "modalidade_calibracao": str(r.get("modalidade_calibracao", "Envio Externo")), "registrado_por": user_email
-                    } for _, r in df_imp.iterrows()]
-                    supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()
-                    st.success("Importado com sucesso!")
-                    st.rerun()
+                    registros = []
+                    erros_tag = []
+                    
+                    for _, r in df_imp.iterrows():
+                        tag_imp = str(r["tag"]).strip().upper()
+                        
+                        # VERIFICAÇÃO NA IMPORTAÇÃO EM MASSA
+                        if not re.match(r'^[A-Z]{4}-\d{3}$', tag_imp):
+                            erros_tag.append(tag_imp)
+                            continue
+                            
+                        registros.append({
+                            "tag": tag_imp, "nome": str(r["nome"]).strip(),
+                            "marca": str(r.get("marca", "")), "modelo": str(r.get("modelo", "")),
+                            "serial_number": str(r.get("serial_number", "")), "status": str(r.get("status", "Operacional")),
+                            "modalidade_calibracao": str(r.get("modalidade_calibracao", "Envio Externo")), "registrado_por": user_email
+                        })
+                    
+                    if erros_tag:
+                        st.warning(f"⚠️ As seguintes Tags foram ignoradas por estarem fora do padrão (AAAA-NNN): {', '.join(erros_tag)}")
+                        
+                    if registros:
+                        supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()
+                        st.success(f"{len(registros)} equipamentos importados com sucesso no padrão correto!")
+                        st.rerun()
             except Exception as e:
                 st.error(f"Erro: {e}")
 

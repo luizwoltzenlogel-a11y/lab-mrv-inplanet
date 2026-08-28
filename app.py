@@ -164,23 +164,21 @@ def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
         msg["From"] = smtp_cfg["user"]
         msg["To"] = destinatario
         msg["Subject"] = assunto
-        # Força o UTF-8 para evitar problemas com acentuação
         msg.attach(MIMEText(mensagem_corpo, "plain", "utf-8")) 
 
-        # Faz a conexão SMTP e tenta o login
         with smtplib.SMTP(smtp_cfg["server"], int(smtp_cfg["port"])) as server:
             server.ehlo()
             server.starttls()
             server.login(smtp_cfg["user"], smtp_cfg["password"])
             server.send_message(msg)
             
-        return True # Se chegou aqui, enviou com sucesso
+        return True
         
     except smtplib.SMTPAuthenticationError:
-        st.error("❌ ERRO DE LOGIN SMTP: Usuário ou Senha incorretos. Lembre-se de usar a 'Senha de Aplicativo' e não a senha normal do email.")
+        st.error("❌ ERRO DE LOGIN SMTP: Usuário ou Senha incorretos. Lembre-se de usar a 'Senha de Aplicativo'.")
         return False
     except Exception as e:
-        st.error(f"❌ ERRO GERAL SMTP: Falha ao conectar com o servidor de e-mail. Detalhe: {e}")
+        st.error(f"❌ ERRO GERAL SMTP: Falha ao conectar com o servidor. Detalhe: {e}")
         return False
 
 def upload_pdf(file, prefixo):
@@ -193,12 +191,6 @@ def upload_pdf(file, prefixo):
     except Exception as e:
         st.error(f"Erro ao salvar PDF: {e}")
         return None
-
-def exibir_mascote():
-    for img in ["capivara.jpg", "capy.jpg", "capivara.png"]:
-        if os.path.exists(img):
-            st.sidebar.image(img, use_container_width=True)
-            break
 
 # --- GESTÃO DE SESSÃO E TIMEOUT ---
 agora = time.time()
@@ -302,7 +294,6 @@ st.sidebar.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-exibir_mascote()
 st.sidebar.divider()
 st.sidebar.title("👤 Meu Perfil")
 st.sidebar.write(f"**E-mail:** {st.session_state['user_email']}")
@@ -1112,7 +1103,6 @@ elif menu == "🛠️ Manutenções & Intervenções" and perfil in ["Admin", "T
                 supabase.table("manutencoes").insert({"equip_tag": equip_tag, "tipo": tipo, "data_intervencao": str(data_intervencao), "tecnico": tecnico, "descricao": descricao, "pdf_url": pdf_url, "registrado_por": user_email}).execute()
                 supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
                 
-                # Modificado para enviar notificação para QUALQUER status que indique parada, além da Corretiva
                 if tipo == "Corretiva" or status_pos in ["Interditado / Fora de Uso", "Em Manutenção", "Em Calibração"]:
                     enviar_notificacao_email(gestor_notificar, f"⚠️ Alerta de Parada/Manutenção: {equip_tag}", f"Prezado Gestor,\n\nIntervenção registrada para {equip_tag}.\n\nTipo: {tipo}\nNovo Status: {status_pos}\nDescrição: {descricao}\n\nRegistrado por: {user_email}")
                 

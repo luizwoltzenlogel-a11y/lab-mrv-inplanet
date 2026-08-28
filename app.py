@@ -112,7 +112,7 @@ st.markdown("""
         background-color: #487F63 !important; 
     }
 
-    /* LABELS E EXPANDERS (ESQUECI A SENHA) */
+    /* LABELS E EXPANDERS */
     div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
     div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
     div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
@@ -306,7 +306,7 @@ perfil = st.session_state["user_perfil"]
 
 if st.session_state["modulo_ativo"] == "Equipamentos":
     st.sidebar.markdown("### 🔬 Módulo Equipamentos")
-    opcoes_menu = ["📌 Inventário & Status", "🛡️ Modo Auditoria (ISO 17025)", "📈 Prontuário & Tendências"]
+    opcoes_menu = ["📌 Inventário & Status", "🛡️ Modo Auditoria (ISO 17025)", "📈 Prontuário & Tendências", "📅 Agendamentos & Logística"]
     if perfil in ["Admin", "Tecnico"]:
         opcoes_menu.extend(["📝 Gerenciar Equipamentos", "📐 Calibrações & Qualificações", "🛠️ Manutenções & Intervenções"])
     if perfil == "Admin":
@@ -381,7 +381,7 @@ if menu == "🏠 Hub Principal":
                 <h1 style="font-size: 3.5rem; margin-bottom: 0.5rem;">🔬</h1>
                 <h3 style="color: #F0F5F2; margin-bottom: 0.5rem;">Gestão de Equipamentos</h3>
                 <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 0;">
-                    Controle de ativos, inventário operacional, calibrações, manutenções, auditoria ISO 17025 e planejamento logístico.
+                    Controle de ativos, inventário operacional, calibrações, manutenções, auditoria ISO 17025 e agendamentos logísticos.
                 </p>
             </div>
         """, unsafe_allow_html=True)
@@ -575,6 +575,143 @@ elif menu == "📈 Prontuário & Tendências":
             st.info("Nenhuma calibração ou manutenção registrada para este equipamento ainda.")
     else:
         st.info("Nenhum equipamento cadastrado.")
+
+# ==============================================================================
+# MÓDULO NOVO: AGENDAMENTOS, PROGRAMAÇÃO DE PARADAS E LOGÍSTICA DE FRETES
+# ==============================================================================
+elif menu == "📅 Agendamentos & Logística":
+    st.header("📅 Agendamentos, Paradas Programadas & Logística")
+    st.caption("Planejamento de fora de uso, controle de envio/destino de equipamentos, custos de transporte e gestão de Notas Fiscais (Req. 6.6 ISO 17025).")
+    
+    abas_ag = ["🗓️ Cronograma & Paradas", "📊 Custos Logísticos"]
+    if perfil in ["Admin", "Tecnico"]:
+        abas_ag.insert(1, "➕ Programar Novo Envio / Indisponibilidade")
+        
+    tabs = st.tabs(abas_ag)
+    
+    # Busca dados no Supabase
+    try:
+        res_ag = supabase.table("agendamentos_logistica").select("*").execute()
+        df_ag = pd.DataFrame(res_ag.data or [])
+    except Exception:
+        df_ag = pd.DataFrame()
+        st.warning("⚠️ Certifique-se de executar o script SQL no Supabase para criar a tabela 'agendamentos_logistica'.")
+
+    # TAB 1: VISÃO DE CRONOGRAMA E PARADAS
+    with tabs[0]:
+        if not df_ag.empty:
+            # Filtro interativo
+            c_f1, c_f2 = st.columns([2, 1])
+            termo_ag = c_f1.text_input("🔍 Pesquisar por TAG, Fornecedor ou Evento:", placeholder="Ex: BALA-001, RBC Calibrações, Preventiva...")
+            filtro_st = c_f2.multiselect("Status do Agendamento:", options=df_ag["status"].unique().tolist(), default=df_ag["status"].unique().tolist())
+            
+            df_f = df_ag[df_ag["status"].isin(filtro_st)]
+            if termo_ag:
+                t_lower = termo_ag.strip().lower()
+                df_f = df_f[
+                    df_f["equip_tag"].astype(str).str.lower().str.contains(t_lower) |
+                    df_f["destino_fornecedor"].astype(str).str.lower().str.contains(t_lower) |
+                    df_f["tipo_evento"].astype(str).str.lower().str.contains(t_lower)
+                ]
+            
+            st.subheader("Lista de Paradas e Envios de Equipamentos")
+            
+            # Formatação de Colunas
+            cols_exibir = ["equip_tag", "tipo_evento", "data_inicio", "data_fim", "destino_fornecedor", "custo_transporte", "custo_servico", "status", "pdf_nf_url", "registrado_por"]
+            cols_exist = [c for c in cols_exibir if c in df_f.columns]
+            
+            df_exib = df_f[cols_exist].rename(columns={
+                "equip_tag": "TAG", "tipo_evento": "Evento", "data_inicio": "Início Parada",
+                "data_fim": "Previsão Retorno", "destino_fornecedor": "Destino / Laboratório",
+                "custo_transporte": "Frete (R$)", "custo_servico": "Serviço (R$)",
+                "status": "Status", "pdf_nf_url": "Nota Fiscal", "registrado_por": "Registrado por"
+            })
+            
+            st.dataframe(
+                df_exib,
+                column_config={"Nota Fiscal": st.column_config.LinkColumn("PDF NF")},
+                use_container_width=True
+            )
+        else:
+            st.info("Nenhum agendamento de envio ou parada registrado no momento.")
+
+    # TAB 2: CADASTRAR NOVO AGENDAMENTO (ADMIN / TÉCNICO)
+    if perfil in ["Admin", "Tecnico"]:
+        with tabs[1]:
+            st.subheader("Programar Parada, Envio Logístico ou Manutenção")
+            eq_res = supabase.table("equipamentos").select("tag, nome").execute()
+            tags_eq = [f"{i['tag']} - {i['nome']}" for i in eq_res.data] if eq_res.data else []
+            
+            if tags_eq:
+                with st.form("form_agendamento", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    equip_sel = col1.selectbox("Selecione o Equipamento *", tags_eq)
+                    tipo_evento = col2.selectbox("Tipo de Intervenção *", ["Calibração Externa (RBC)", "Manutenção Preventiva", "Manutenção Corretiva", "Qualificação OQ/PQ In-Loco"])
+                    
+                    data_inicio = col1.date_input("Data de Início da Indisponibilidade *")
+                    data_fim = col2.date_input("Previsão de Retorno / Término *")
+                    
+                    destino_fornecedor = col1.text_input("Destino / Fornecedor Contratado *", placeholder="Ex: Lab Calibrations SP / Transportadora X")
+                    status_ag = col2.selectbox("Status Inicial", ["Programado", "Em Trânsito", "Em Manutenção/Calibração", "Concluído"])
+                    
+                    c_c1, c_c2 = st.columns(2)
+                    custo_transporte = c_c1.number_input("Custo de Transporte / Frete (R$)", min_value=0.0, step=10.0)
+                    custo_servico = c_c2.number_input("Custo do Serviço de Calibração/Manutenção (R$)", min_value=0.0, step=50.0)
+                    
+                    obs_ag = st.text_area("Observações Logísticas / Rastreador do Frete")
+                    pdf_nf = st.file_uploader("Anexar Nota Fiscal / Conhecimento de Transporte (PDF)", type=["pdf"])
+                    
+                    if st.form_submit_button("Salvar Agendamento Logístico"):
+                        tag_pura = equip_sel.split(" - ")[0]
+                        pdf_url = upload_pdf(pdf_nf, f"NF_{tag_pura}") if pdf_nf else None
+                        
+                        dado_ag = {
+                            "equip_tag": tag_pura,
+                            "tipo_evento": tipo_evento,
+                            "data_inicio": str(data_inicio),
+                            "data_fim": str(data_fim),
+                            "destino_fornecedor": destino_fornecedor,
+                            "custo_transporte": float(custo_transporte),
+                            "custo_servico": float(custo_servico),
+                            "status": status_ag,
+                            "pdf_nf_url": pdf_url,
+                            "observacoes": obs_ag,
+                            "registrado_por": user_email
+                        }
+                        
+                        supabase.table("agendamentos_logistica").insert(dado_ag).execute()
+                        
+                        # Atualiza o status do equipamento se já estiver em trânsito/manutenção
+                        if status_ag in ["Em Trânsito", "Em Manutenção/Calibração"]:
+                            novo_st_eq = "Em Calibração" if "Calibração" in tipo_evento else "Em Manutenção"
+                            supabase.table("equipamentos").update({"status": novo_st_eq}).eq("tag", tag_pura).execute()
+                            
+                        st.success(f"Agendamento do equipamento {tag_pura} registrado com sucesso!")
+                        st.rerun()
+            else:
+                st.info("Cadastre equipamentos antes de programar agendamentos.")
+
+    # TAB 3: CUSTOS LOGÍSTICOS
+    idx_custos = 2 if perfil in ["Admin", "Tecnico"] else 1
+    with tabs[idx_custos]:
+        st.subheader("📈 Resumo de Custos Logísticos e Manutenção Externa")
+        if not df_ag.empty:
+            tot_frete = df_ag["custo_transporte"].sum()
+            tot_servicos = df_ag["custo_servico"].sum()
+            tot_geral = tot_frete + tot_servicos
+            
+            mc1, mc2, mc3 = st.columns(3)
+            mc1.metric("Total Gasto em Frete/Logística", f"R$ {tot_frete:,.2f}")
+            mc2.metric("Total Gasto em Serviços", f"R$ {tot_servicos:,.2f}")
+            mc3.metric("Investimento Total Acumulado", f"R$ {tot_geral:,.2f}")
+            
+            st.divider()
+            st.markdown("##### Gastos por Equipamento")
+            df_groupby = df_ag.groupby("equip_tag")[["custo_transporte", "custo_servico"]].sum().reset_index()
+            df_groupby["Total (R$)"] = df_groupby["custo_transporte"] + df_groupby["custo_servico"]
+            st.dataframe(df_groupby.rename(columns={"equip_tag": "TAG", "custo_transporte": "Fretes (R$)", "custo_servico": "Serviços (R$)"}), use_container_width=True)
+        else:
+            st.info("Nenhum dado financeiro registrado ainda.")
 
 # ==============================================================================
 # 4. REAGENTES E CONSUMÍVEIS

@@ -221,7 +221,7 @@ if not st.session_state.get("autenticado", False):
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
         logo_login = None
-        for nome_img in ["logo_labmaster.jpg", "logo_labmaster.png", "logo_labmaster.jpeg", "Quero_um_logo_de_capivara_bpede_minimalista_com_contorno_brn.jpg"]:
+        for nome_img in ["logo_labmaster.jpg", "logo_labmaster.png", "logo_labmaster.jpeg"]:
             if os.path.exists(nome_img):
                 logo_login = nome_img
                 break
@@ -347,7 +347,7 @@ if menu != "🏠 Hub Principal":
 if menu == "🏠 Hub Principal":
     
     logo_capy_hub = None
-    for nome_img in ["logo_labmaster.jpg", "logo_labmaster.png", "logo_labmaster.jpeg", "Quero_um_logo_de_capivara_bpede_minimalista_com_contorno_brn.jpg"]:
+    for nome_img in ["logo_labmaster.jpg", "logo_labmaster.png", "logo_labmaster.jpeg"]:
         if os.path.exists(nome_img):
             logo_capy_hub = nome_img
             break
@@ -360,7 +360,7 @@ if menu == "🏠 Hub Principal":
             st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>Lab Master</h1>", unsafe_allow_html=True)
             
     st.markdown("""
-        <div style="text-align: center; padding-bottom: 2rem;">
+        <div style="text-align: center; padding-bottom: 1.5rem;">
             <h3 style="color: var(--inplanet-green); font-weight: 400; margin-top: 0px;">Sistema de Gestão Laboratorial</h3>
         </div>
     """, unsafe_allow_html=True)
@@ -369,9 +369,9 @@ if menu == "🏠 Hub Principal":
         background-color: var(--inplanet-card); 
         border: 2px solid var(--inplanet-green); 
         border-radius: 12px; 
-        padding: 2rem; 
+        padding: 1.5rem; 
         text-align: center;
-        height: 280px;
+        height: 200px;
         display: flex; 
         flex-direction: column; 
         justify-content: center;
@@ -382,9 +382,9 @@ if menu == "🏠 Hub Principal":
     with col1:
         st.markdown(f"""
             <div style="{card_style}">
-                <h1 style="font-size: 3.5rem; margin-bottom: 0.5rem;">🔬</h1>
-                <h3 style="color: #F0F5F2; margin-bottom: 0.5rem;">Gestão de Equipamentos</h3>
-                <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 0;">
+                <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔬</h1>
+                <h4 style="color: #F0F5F2; margin-bottom: 0.5rem;">Gestão de Equipamentos</h4>
+                <p style="color: #9AABA0; font-size: 0.85rem; margin-bottom: 0;">
                     Controle de ativos, inventário operacional, calibrações, manutenções, auditoria ISO 17025 e agendamentos logísticos.
                 </p>
             </div>
@@ -395,9 +395,9 @@ if menu == "🏠 Hub Principal":
     with col2:
         st.markdown(f"""
             <div style="{card_style}">
-                <h1 style="font-size: 3.5rem; margin-bottom: 0.5rem;">📦</h1>
-                <h3 style="color: #F0F5F2; margin-bottom: 0.5rem;">Reagentes & Consumíveis</h3>
-                <p style="color: #9AABA0; font-size: 0.95rem; margin-bottom: 0;">
+                <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">📦</h1>
+                <h4 style="color: #F0F5F2; margin-bottom: 0.5rem;">Reagentes & Consumíveis</h4>
+                <p style="color: #9AABA0; font-size: 0.85rem; margin-bottom: 0;">
                     Gestão de frascos, reagentes, colunas, filtros, seringas, controle de validade e alertas de estoque de segurança.
                 </p>
             </div>

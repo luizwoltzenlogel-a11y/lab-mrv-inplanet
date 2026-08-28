@@ -154,21 +154,34 @@ def obter_lista_gestores():
 
 def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
     smtp_cfg = st.secrets.get("smtp")
+    
     if not smtp_cfg:
-        return
+        st.error("❌ ERRO: A configuração '[smtp]' não foi encontrada no arquivo secrets.toml.")
+        return False
+        
     try:
         msg = MIMEMultipart()
         msg["From"] = smtp_cfg["user"]
         msg["To"] = destinatario
         msg["Subject"] = assunto
-        msg.attach(MIMEText(mensagem_corpo, "plain"))
+        # Força o UTF-8 para evitar problemas com acentuação
+        msg.attach(MIMEText(mensagem_corpo, "plain", "utf-8")) 
 
+        # Faz a conexão SMTP e tenta o login
         with smtplib.SMTP(smtp_cfg["server"], int(smtp_cfg["port"])) as server:
+            server.ehlo()
             server.starttls()
             server.login(smtp_cfg["user"], smtp_cfg["password"])
             server.send_message(msg)
+            
+        return True # Se chegou aqui, enviou com sucesso
+        
+    except smtplib.SMTPAuthenticationError:
+        st.error("❌ ERRO DE LOGIN SMTP: Usuário ou Senha incorretos. Lembre-se de usar a 'Senha de Aplicativo' e não a senha normal do email.")
+        return False
     except Exception as e:
-        st.error(f"Erro ao enviar e-mail: {e}")
+        st.error(f"❌ ERRO GERAL SMTP: Falha ao conectar com o servidor de e-mail. Detalhe: {e}")
+        return False
 
 def upload_pdf(file, prefixo):
     try:
@@ -260,8 +273,8 @@ if not st.session_state.get("autenticado", False):
                         
                         enviado = False
                         for gestor in gestores:
-                            enviar_notificacao_email(gestor, assunto, corpo)
-                            enviado = True
+                            if enviar_notificacao_email(gestor, assunto, corpo):
+                                enviado = True
                             
                         if enviado:
                             st.success("✅ Solicitação enviada! Um administrador entrará em contato em breve.")
@@ -1099,6 +1112,7 @@ elif menu == "🛠️ Manutenções & Intervenções" and perfil in ["Admin", "T
                 supabase.table("manutencoes").insert({"equip_tag": equip_tag, "tipo": tipo, "data_intervencao": str(data_intervencao), "tecnico": tecnico, "descricao": descricao, "pdf_url": pdf_url, "registrado_por": user_email}).execute()
                 supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
                 
+                # Modificado para enviar notificação para QUALQUER status que indique parada, além da Corretiva
                 if tipo == "Corretiva" or status_pos in ["Interditado / Fora de Uso", "Em Manutenção", "Em Calibração"]:
                     enviar_notificacao_email(gestor_notificar, f"⚠️ Alerta de Parada/Manutenção: {equip_tag}", f"Prezado Gestor,\n\nIntervenção registrada para {equip_tag}.\n\nTipo: {tipo}\nNovo Status: {status_pos}\nDescrição: {descricao}\n\nRegistrado por: {user_email}")
                 

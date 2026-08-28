@@ -3,7 +3,7 @@ import os
 import smtplib
 import time
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -416,7 +416,7 @@ elif menu == "📌 Inventário & Status":
         c3.metric("Em Calibração", len(df[df["status"] == "Em Calibração"]))
         c4.metric("Interditados/Manutenção", len(df[~df["status"].isin(["Operacional", "Em Calibração"])]))
         
-        cols_exibir = [c for c in ["tag", "nome", "marca", "modelo", "serial_number", "status", "modalidade_calibracao", "registrado_por"] if c in df.columns]
+        cols_exibir = [c for c in ["tag", "nome", "marca", "modelo", "serial_number", "periodicidade_meses", "status", "modalidade_calibracao", "registrado_por"] if c in df.columns]
         st.dataframe(df[cols_exibir], use_container_width=True)
 
         st.divider()
@@ -577,7 +577,7 @@ elif menu == "📈 Prontuário & Tendências":
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# MÓDULO NOVO: AGENDAMENTOS, PROGRAMAÇÃO DE PARADAS E LOGÍSTICA DE FRETES
+# AGENDAMENTOS, PROGRAMAÇÃO DE PARADAS E LOGÍSTICA DE FRETES
 # ==============================================================================
 elif menu == "📅 Agendamentos & Logística":
     st.header("📅 Agendamentos, Paradas Programadas & Logística")
@@ -585,11 +585,10 @@ elif menu == "📅 Agendamentos & Logística":
     
     abas_ag = ["🗓️ Cronograma & Paradas", "📊 Custos Logísticos"]
     if perfil in ["Admin", "Tecnico"]:
-        abas_ag.insert(1, "➕ Programar Novo Envio / Indisponibilidade")
+        abas_ag.insert(1, "➕ Intervenção Manual / Fora de Prazo")
         
     tabs = st.tabs(abas_ag)
     
-    # Busca dados no Supabase
     try:
         res_ag = supabase.table("agendamentos_logistica").select("*").execute()
         df_ag = pd.DataFrame(res_ag.data or [])
@@ -597,10 +596,8 @@ elif menu == "📅 Agendamentos & Logística":
         df_ag = pd.DataFrame()
         st.warning("⚠️ Certifique-se de executar o script SQL no Supabase para criar a tabela 'agendamentos_logistica'.")
 
-    # TAB 1: VISÃO DE CRONOGRAMA E PARADAS
     with tabs[0]:
         if not df_ag.empty:
-            # Filtro interativo
             c_f1, c_f2 = st.columns([2, 1])
             termo_ag = c_f1.text_input("🔍 Pesquisar por TAG, Fornecedor ou Evento:", placeholder="Ex: BALA-001, RBC Calibrações, Preventiva...")
             filtro_st = c_f2.multiselect("Status do Agendamento:", options=df_ag["status"].unique().tolist(), default=df_ag["status"].unique().tolist())
@@ -616,7 +613,6 @@ elif menu == "📅 Agendamentos & Logística":
             
             st.subheader("Lista de Paradas e Envios de Equipamentos")
             
-            # Formatação de Colunas
             cols_exibir = ["equip_tag", "tipo_evento", "data_inicio", "data_fim", "destino_fornecedor", "custo_transporte", "custo_servico", "status", "pdf_nf_url", "registrado_por"]
             cols_exist = [c for c in cols_exibir if c in df_f.columns]
             
@@ -635,10 +631,11 @@ elif menu == "📅 Agendamentos & Logística":
         else:
             st.info("Nenhum agendamento de envio ou parada registrado no momento.")
 
-    # TAB 2: CADASTRAR NOVO AGENDAMENTO (ADMIN / TÉCNICO)
     if perfil in ["Admin", "Tecnico"]:
         with tabs[1]:
-            st.subheader("Programar Parada, Envio Logístico ou Manutenção")
+            st.subheader("Programar Intervenção Fora de Prazo / Manutenção de Emergência")
+            st.caption("Utilize este formulário para manutenções corretivas, calibrações extraordinárias ou desvios de rotina.")
+            
             eq_res = supabase.table("equipamentos").select("tag, nome").execute()
             tags_eq = [f"{i['tag']} - {i['nome']}" for i in eq_res.data] if eq_res.data else []
             
@@ -646,7 +643,7 @@ elif menu == "📅 Agendamentos & Logística":
                 with st.form("form_agendamento", clear_on_submit=True):
                     col1, col2 = st.columns(2)
                     equip_sel = col1.selectbox("Selecione o Equipamento *", tags_eq)
-                    tipo_evento = col2.selectbox("Tipo de Intervenção *", ["Calibração Externa (RBC)", "Manutenção Preventiva", "Manutenção Corretiva", "Qualificação OQ/PQ In-Loco"])
+                    tipo_evento = col2.selectbox("Tipo de Intervenção Extraordinária *", ["Manutenção Corretiva (Urgente)", "Calibração Extraordinária", "Manutenção Preventiva Fora de Prazo", "Qualificação OQ/PQ Especial"])
                     
                     data_inicio = col1.date_input("Data de Início da Indisponibilidade *")
                     data_fim = col2.date_input("Previsão de Retorno / Término *")
@@ -658,10 +655,10 @@ elif menu == "📅 Agendamentos & Logística":
                     custo_transporte = c_c1.number_input("Custo de Transporte / Frete (R$)", min_value=0.0, step=10.0)
                     custo_servico = c_c2.number_input("Custo do Serviço de Calibração/Manutenção (R$)", min_value=0.0, step=50.0)
                     
-                    obs_ag = st.text_area("Observações Logísticas / Rastreador do Frete")
+                    obs_ag = st.text_area("Justificativa da Intervenção Extraordinária / Rastreador")
                     pdf_nf = st.file_uploader("Anexar Nota Fiscal / Conhecimento de Transporte (PDF)", type=["pdf"])
                     
-                    if st.form_submit_button("Salvar Agendamento Logístico"):
+                    if st.form_submit_button("Salvar Intervenção Manual"):
                         tag_pura = equip_sel.split(" - ")[0]
                         pdf_url = upload_pdf(pdf_nf, f"NF_{tag_pura}") if pdf_nf else None
                         
@@ -681,7 +678,6 @@ elif menu == "📅 Agendamentos & Logística":
                         
                         supabase.table("agendamentos_logistica").insert(dado_ag).execute()
                         
-                        # Atualiza o status do equipamento se já estiver em trânsito/manutenção
                         if status_ag in ["Em Trânsito", "Em Manutenção/Calibração"]:
                             novo_st_eq = "Em Calibração" if "Calibração" in tipo_evento else "Em Manutenção"
                             supabase.table("equipamentos").update({"status": novo_st_eq}).eq("tag", tag_pura).execute()
@@ -691,7 +687,6 @@ elif menu == "📅 Agendamentos & Logística":
             else:
                 st.info("Cadastre equipamentos antes de programar agendamentos.")
 
-    # TAB 3: CUSTOS LOGÍSTICOS
     idx_custos = 2 if perfil in ["Admin", "Tecnico"] else 1
     with tabs[idx_custos]:
         st.subheader("📈 Resumo de Custos Logísticos e Manutenção Externa")
@@ -916,7 +911,7 @@ elif menu == "📦 Controle de Estoque":
                 st.info("Não há lotes físicos cadastrados.")
 
 # ==============================================================================
-# 5. GERENCIAR EQUIPAMENTOS
+# 5. GERENCIAR EQUIPAMENTOS (COM PERIODICIDADE PADRÃO)
 # ==============================================================================
 elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
@@ -930,7 +925,7 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
         tags = ["-- Cadastrar Novo --"] + (df_eq_exist["tag"].tolist() if not df_eq_exist.empty else [])
         tag_sel = st.selectbox("Selecione para EDITAR ou mantenha para NOVO:", tags)
         
-        def_v = {"tag": "", "nome": "", "marca": "", "modelo": "", "serial_number": "", "status": "Operacional", "modalidade_calibracao": "Envio Externo"}
+        def_v = {"tag": "", "nome": "", "marca": "", "modelo": "", "serial_number": "", "periodicidade_meses": 12, "status": "Operacional", "modalidade_calibracao": "Envio Externo"}
         if tag_sel != "-- Cadastrar Novo --" and not df_eq_exist.empty:
             def_v = df_eq_exist[df_eq_exist["tag"] == tag_sel].iloc[0].to_dict()
             
@@ -940,11 +935,12 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                 tag = st.text_input("Tag / Código Interno *", value=str(def_v.get("tag", "")), placeholder="Ex: BALA-001", help="Padrão obrigatório: 4 letras, um hífen e 3 números (ex: ICPO-001)")
                 nome = st.text_input("Nome do Equipamento *", value=str(def_v.get("nome", "")))
                 marca = st.text_input("Marca / Fabricante", value=str(def_v.get("marca", "")))
-                op_mod = ["Envio Externo", "In-Loco", "Qualificação OQ/PQ"]
-                modalidade = st.selectbox("Modalidade de Serviço", op_mod, index=op_mod.index(def_v.get("modalidade_calibracao", "Envio Externo")) if def_v.get("modalidade_calibracao") in op_mod else 0)
+                periodicidade = st.number_input("Periodicidade Padrão de Calibração (em Meses) *", min_value=1, max_value=60, value=int(def_v.get("periodicidade_meses", 12)))
             with c2:
                 modelo = st.text_input("Modelo", value=str(def_v.get("modelo", "")))
                 serial_number = st.text_input("Número de Série", value=str(def_v.get("serial_number", "")))
+                op_mod = ["Envio Externo", "In-Loco", "Qualificação OQ/PQ"]
+                modalidade = st.selectbox("Modalidade de Serviço", op_mod, index=op_mod.index(def_v.get("modalidade_calibracao", "Envio Externo")) if def_v.get("modalidade_calibracao") in op_mod else 0)
                 op_st = ["Operacional", "Em Calibração", "Em Manutenção", "Interditado / Fora de Uso"]
                 status = st.selectbox("Status Operacional", op_st, index=op_st.index(def_v.get("status", "Operacional")) if def_v.get("status") in op_st else 0)
             
@@ -953,7 +949,7 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                 if not re.match(r'^[A-Z]{4}-\d{3}$', tag):
                     st.error("❌ A Tag deve seguir o padrão rigoroso de 4 letras, um hífen e 3 números (Ex: BALA-001).")
                 elif tag and nome:
-                    dado = {"tag": tag, "nome": nome, "marca": marca, "modelo": modelo, "serial_number": serial_number, "status": status, "modalidade_calibracao": modalidade, "registrado_por": user_email}
+                    dado = {"tag": tag, "nome": nome, "marca": marca, "modelo": modelo, "serial_number": serial_number, "periodicidade_meses": int(periodicidade), "status": status, "modalidade_calibracao": modalidade, "registrado_por": user_email}
                     supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
                     st.success(f"Equipamento {tag} gravado com sucesso!")
                     st.rerun()
@@ -979,7 +975,9 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                         registros.append({
                             "tag": tag_imp, "nome": str(r["nome"]).strip(),
                             "marca": str(r.get("marca", "")), "modelo": str(r.get("modelo", "")),
-                            "serial_number": str(r.get("serial_number", "")), "status": str(r.get("status", "Operacional")),
+                            "serial_number": str(r.get("serial_number", "")),
+                            "periodicidade_meses": int(r.get("periodicidade_meses", 12)),
+                            "status": str(r.get("status", "Operacional")),
                             "modalidade_calibracao": str(r.get("modalidade_calibracao", "Envio Externo")), "registrado_por": user_email
                         })
                     
@@ -1004,38 +1002,75 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                     st.rerun()
 
 # ==============================================================================
-# 6. CALIBRAÇÕES
+# 6. CALIBRAÇÕES (CÁLCULO E AGENDAMENTO AUTOMÁTICO DE PRÓXIMA CALIBRAÇÃO)
 # ==============================================================================
 elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tecnico"]:
     st.header("📐 Registro de Calibração")
-    eq_res = supabase.table("equipamentos").select("tag").execute()
-    tags = [i["tag"] for i in eq_res.data] if eq_res.data else []
+    eq_res = supabase.table("equipamentos").select("tag, nome, periodicidade_meses").execute()
+    equipamentos_dados = {i["tag"]: i for i in eq_res.data} if eq_res.data else {}
+    tags = list(equipamentos_dados.keys())
     lista_gestores = obter_lista_gestores()
     
     if tags:
+        equip_tag = st.selectbox("Selecione o Equipamento *", tags)
+        
+        # Pega a periodicidade cadastrada (Padrão: 12 meses)
+        periodicidade_meses = equipamentos_dados[equip_tag].get("periodicidade_meses") or 12
+        st.info(f"ℹ️ Periodicidade cadastrada para {equip_tag}: **{periodicidade_meses} meses**. O próximo vencimento e a parada no cronograma serão calculados automaticamente.")
+        
         with st.form("form_calib", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
-                equip_tag = st.selectbox("Equipamento *", tags)
-                data_calib = st.date_input("Data da Calibração")
+                data_calib = st.date_input("Data da Calibração Realizada", value=datetime.now().date())
                 resultado = st.selectbox("Resultado *", ["Aprovado", "Reprovado"])
             with c2:
-                data_venc = st.date_input("Próximo Vencimento")
-                certificado = st.text_input("Número do Certificado")
+                # Calcula data de vencimento automática baseada na periodicidade
+                data_venc_calc = (pd.to_datetime(data_calib) + pd.DateOffset(months=periodicidade_meses)).date()
+                data_venc = st.date_input("Próximo Vencimento (Calculado Automático)", value=data_venc_calc)
+                certificado = st.text_input("Número do Certificado / Laudo *")
                 gestor_notificar = st.selectbox("Gestor a Notificar *", lista_gestores)
                 
-            pdf_file = st.file_uploader("Anexar Certificado (PDF)", type=["pdf"])
+            pdf_file = st.file_uploader("Anexar Certificado de Calibração (PDF)", type=["pdf"])
             
-            if st.form_submit_button("Registrar Calibração"):
+            if st.form_submit_button("Registrar Calibração & Agendar Próximo Ciclo"):
                 pdf_url = upload_pdf(pdf_file, f"CALIB_{equip_tag}") if pdf_file else None
-                supabase.table("calibracoes").insert({"equip_tag": equip_tag, "data_calib": str(data_calib), "data_venc": str(data_venc), "resultado": resultado, "certificado": certificado, "pdf_url": pdf_url, "registrado_por": user_email}).execute()
                 
+                # 1. Salva o histórico de calibração
+                supabase.table("calibracoes").insert({
+                    "equip_tag": equip_tag, 
+                    "data_calib": str(data_calib), 
+                    "data_venc": str(data_venc), 
+                    "resultado": resultado, 
+                    "certificado": certificado, 
+                    "pdf_url": pdf_url, 
+                    "registrado_por": user_email
+                }).execute()
+                
+                # 2. Atualiza o status do equipamento
                 novo_status = "Operacional" if resultado == "Aprovado" else "Interditado / Fora de Uso"
                 supabase.table("equipamentos").update({"status": novo_status}).eq("tag", equip_tag).execute()
                 
+                # 3. AGENDAMENTO AUTOMÁTICO DA PRÓXIMA CALIBRAÇÃO NO CRONOGRAMA
+                if resultado == "Aprovado":
+                    data_inicio_ag = data_venc - timedelta(days=7) # Previsão de início 7 dias antes do vencimento
+                    supabase.table("agendamentos_logistica").insert({
+                        "equip_tag": equip_tag,
+                        "tipo_evento": "Calibração Programada (Automática)",
+                        "data_inicio": str(data_inicio_ag),
+                        "data_fim": str(data_venc),
+                        "destino_fornecedor": "Laboratório Credenciado RBC / A Definir",
+                        "custo_transporte": 0.0,
+                        "custo_servico": 0.0,
+                        "status": "Programado",
+                        "observacoes": f"Agendamento ciclo automático ({periodicidade_meses} meses) pós-calibração Laudo nº {certificado}.",
+                        "registrado_por": user_email
+                    }).execute()
+                
                 if resultado == "Reprovado":
-                    enviar_notificacao_email(gestor_notificar, f"🚨 Reprovação de Calibração: {equip_tag}", f"Atenção Gestor,\n\nO equipamento {equip_tag} foi REPROVADO na calibração.\n\nCertificado: {certificado}\nRegistrado por: {user_email}")
-                st.success(f"Calibração registrada! Status atualizado para '{novo_status}'.")
+                    enviar_notificacao_email(gestor_notificar, f"🚨 Reprovação de Calibração: {equip_tag}", f"Atenção Gestor,\n\nO equipamento {equip_tag} foi REPROVADO na calibração realizada em {data_calib}.\n\nCertificado: {certificado}\nStatus: Interditado / Fora de Uso\nRegistrado por: {user_email}")
+                
+                st.success(f"Calibração de {equip_tag} gravada! Próximo envio agendado automaticamente no cronograma para {data_venc}.")
+                time.sleep(2)
                 st.rerun()
 
 # ==============================================================================

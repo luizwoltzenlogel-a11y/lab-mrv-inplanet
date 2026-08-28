@@ -911,7 +911,7 @@ elif menu == "📦 Controle de Estoque":
                 st.info("Não há lotes físicos cadastrados.")
 
 # ==============================================================================
-# 5. GERENCIAR EQUIPAMENTOS (COM PERIODICIDADE PADRÃO)
+# 5. GERENCIAR EQUIPAMENTOS
 # ==============================================================================
 elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
@@ -1002,7 +1002,7 @@ elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
                     st.rerun()
 
 # ==============================================================================
-# 6. CALIBRAÇÕES (CÁLCULO E AGENDAMENTO AUTOMÁTICO DE PRÓXIMA CALIBRAÇÃO)
+# 6. CALIBRAÇÕES
 # ==============================================================================
 elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tecnico"]:
     st.header("📐 Registro de Calibração")
@@ -1014,7 +1014,6 @@ elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tec
     if tags:
         equip_tag = st.selectbox("Selecione o Equipamento *", tags)
         
-        # Pega a periodicidade cadastrada (Padrão: 12 meses)
         periodicidade_meses = equipamentos_dados[equip_tag].get("periodicidade_meses") or 12
         st.info(f"ℹ️ Periodicidade cadastrada para {equip_tag}: **{periodicidade_meses} meses**. O próximo vencimento e a parada no cronograma serão calculados automaticamente.")
         
@@ -1024,7 +1023,6 @@ elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tec
                 data_calib = st.date_input("Data da Calibração Realizada", value=datetime.now().date())
                 resultado = st.selectbox("Resultado *", ["Aprovado", "Reprovado"])
             with c2:
-                # Calcula data de vencimento automática baseada na periodicidade
                 data_venc_calc = (pd.to_datetime(data_calib) + pd.DateOffset(months=periodicidade_meses)).date()
                 data_venc = st.date_input("Próximo Vencimento (Calculado Automático)", value=data_venc_calc)
                 certificado = st.text_input("Número do Certificado / Laudo *")
@@ -1035,7 +1033,6 @@ elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tec
             if st.form_submit_button("Registrar Calibração & Agendar Próximo Ciclo"):
                 pdf_url = upload_pdf(pdf_file, f"CALIB_{equip_tag}") if pdf_file else None
                 
-                # 1. Salva o histórico de calibração
                 supabase.table("calibracoes").insert({
                     "equip_tag": equip_tag, 
                     "data_calib": str(data_calib), 
@@ -1046,13 +1043,11 @@ elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tec
                     "registrado_por": user_email
                 }).execute()
                 
-                # 2. Atualiza o status do equipamento
                 novo_status = "Operacional" if resultado == "Aprovado" else "Interditado / Fora de Uso"
                 supabase.table("equipamentos").update({"status": novo_status}).eq("tag", equip_tag).execute()
                 
-                # 3. AGENDAMENTO AUTOMÁTICO DA PRÓXIMA CALIBRAÇÃO NO CRONOGRAMA
                 if resultado == "Aprovado":
-                    data_inicio_ag = data_venc - timedelta(days=7) # Previsão de início 7 dias antes do vencimento
+                    data_inicio_ag = data_venc - timedelta(days=7)
                     supabase.table("agendamentos_logistica").insert({
                         "equip_tag": equip_tag,
                         "tipo_evento": "Calibração Programada (Automática)",
@@ -1065,6 +1060,8 @@ elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tec
                         "observacoes": f"Agendamento ciclo automático ({periodicidade_meses} meses) pós-calibração Laudo nº {certificado}.",
                         "registrado_por": user_email
                     }).execute()
+                    
+                    enviar_notificacao_email(gestor_notificar, f"✅ Calibração Aprovada: {equip_tag}", f"Atenção Gestor,\n\nO equipamento {equip_tag} foi APROVADO na calibração.\n\nCertificado: {certificado}\nPróximo Vencimento: {data_venc}\nRegistrado por: {user_email}")
                 
                 if resultado == "Reprovado":
                     enviar_notificacao_email(gestor_notificar, f"🚨 Reprovação de Calibração: {equip_tag}", f"Atenção Gestor,\n\nO equipamento {equip_tag} foi REPROVADO na calibração realizada em {data_calib}.\n\nCertificado: {certificado}\nStatus: Interditado / Fora de Uso\nRegistrado por: {user_email}")
@@ -1102,8 +1099,9 @@ elif menu == "🛠️ Manutenções & Intervenções" and perfil in ["Admin", "T
                 supabase.table("manutencoes").insert({"equip_tag": equip_tag, "tipo": tipo, "data_intervencao": str(data_intervencao), "tecnico": tecnico, "descricao": descricao, "pdf_url": pdf_url, "registrado_por": user_email}).execute()
                 supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
                 
-                if tipo == "Corretiva" or status_pos in ["Interditado / Fora de Uso", "Em Manutenção"]:
-                    enviar_notificacao_email(gestor_notificar, f"⚠️ Alerta de Manutenção: {equip_tag}", f"Prezado Gestor,\n\nIntervenção registrada para {equip_tag}.\n\nTipo: {tipo}\nNovo Status: {status_pos}\nDescrição: {descricao}\n\nRegistrado por: {user_email}")
+                if tipo == "Corretiva" or status_pos in ["Interditado / Fora de Uso", "Em Manutenção", "Em Calibração"]:
+                    enviar_notificacao_email(gestor_notificar, f"⚠️ Alerta de Parada/Manutenção: {equip_tag}", f"Prezado Gestor,\n\nIntervenção registrada para {equip_tag}.\n\nTipo: {tipo}\nNovo Status: {status_pos}\nDescrição: {descricao}\n\nRegistrado por: {user_email}")
+                
                 st.success("Manutenção registrada com sucesso!")
                 st.rerun()
 

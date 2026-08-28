@@ -299,7 +299,32 @@ st.sidebar.title("👤 Meu Perfil")
 st.sidebar.write(f"**E-mail:** {st.session_state['user_email']}")
 st.sidebar.write(f"**Permissão:** {st.session_state['user_perfil']}")
 
-if st.sidebar.button("🚪 Sair do Sistema"):
+# --- NOVA FUNCIONALIDADE: ALTERAR SENHA ---
+with st.sidebar.expander("🔑 Alterar Senha"):
+    with st.form("form_change_pwd", clear_on_submit=True):
+        senha_atual = st.text_input("Senha Atual", type="password")
+        nova_senha = st.text_input("Nova Senha", type="password")
+        confirma_senha = st.text_input("Confirmar Nova Senha", type="password")
+        
+        if st.form_submit_button("Atualizar Senha", use_container_width=True):
+            if not senha_atual or not nova_senha or not confirma_senha:
+                st.error("Preencha todos os campos.")
+            elif nova_senha != confirma_senha:
+                st.error("A nova senha e a confirmação não coincidem.")
+            else:
+                user_email = st.session_state["user_email"]
+                # Verifica se a senha atual está correta
+                res_val = supabase.table("usuarios").select("id").eq("email", user_email).eq("senha", hash_senha(senha_atual)).execute()
+                
+                if res_val.data:
+                    # Atualiza com a nova senha
+                    supabase.table("usuarios").update({"senha": hash_senha(nova_senha)}).eq("email", user_email).execute()
+                    st.success("✅ Senha atualizada com sucesso!")
+                else:
+                    st.error("❌ A Senha Atual está incorreta.")
+
+st.sidebar.write("")
+if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
     st.session_state.clear()
     st.query_params.clear()
     st.rerun()
@@ -1146,7 +1171,7 @@ Suas credenciais de acesso são:
 🔑 Senha Temporária: {nova_senha}
 🛡️ Nível de Acesso: {novo_perfil}
 
-⚠️ Atenção: Por questões de segurança, sua sessão será encerrada automaticamente após 10 minutos de inatividade na bancada.
+⚠️ Atenção: Por questões de segurança, recomendamos que você altere sua senha no menu lateral assim que acessar o sistema.
 
 Bom trabalho!
 Equipe Lab Master / InPlanet"""

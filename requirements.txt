@@ -1,2 +1,5 @@
-streamlit
-supabase
+streamlit>=1.35.0
+supabase>=2.4.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+pillow>=10.0.0

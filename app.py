@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 from supabase import Client, create_client
 
-# Configuração da Página
+# Configuração de Página
 st.set_page_config(page_title="Lab Master - InPlanet LMS", page_icon="🧪", layout="wide")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -190,7 +190,7 @@ if st.session_state.get("autenticado", False):
     st.session_state["ultima_atividade"] = agora
 
 # ==============================================================================
-# TELA DE LOGIN
+# TELA DE LOGIN (CENTRALIZADA E SEM DUPLICAÇÃO DE TÍTULO)
 # ==============================================================================
 if not st.session_state.get("autenticado", False):
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
@@ -241,7 +241,7 @@ if not st.session_state.get("autenticado", False):
     st.stop()
 
 # ==============================================================================
-# BARRA LATERAL
+# BARRA LATERAL (LOGO INPLANET + PERFIL + ALTERAR SENHA)
 # ==============================================================================
 def selecionar_modulo(nome_modulo, pagina_inicial):
     st.session_state["modulo_ativo"] = nome_modulo
@@ -332,7 +332,7 @@ if menu != "🏠 Hub Principal":
     st.title("🧪 Lab Master LMS")
 
 # ==============================================================================
-# 0. HUB PRINCIPAL
+# 0. HUB PRINCIPAL (LOGO DA CAPIVARA CENTRALIZADA E AMPLIADA)
 # ==============================================================================
 if menu == "🏠 Hub Principal":
     col_lh1, col_lh2, col_lh3 = st.columns([1, 1.5, 1])
@@ -594,7 +594,7 @@ elif menu == "📦 Controle de Estoque":
                         st.rerun()
 
 # ==============================================================================
-# 7. GERENCIAR EQUIPAMENTOS (IMPORTAÇÃO EM MASSA COM OPENPYXL)
+# 7. GERENCIAR EQUIPAMENTOS (IMPORTAÇÃO FLEXÍVEL COM OPENPYXL)
 # ==============================================================================
 elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
     st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")

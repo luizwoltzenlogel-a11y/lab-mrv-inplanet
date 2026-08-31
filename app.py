@@ -10,40 +10,13 @@ from email.mime.text import MIMEText
 import pandas as pd
 import streamlit as st
 from supabase import Client, create_client
-from PIL import Image
 
-# Configuração da Página
-st.set_page_config(page_title="Lab Master - InPlanet LMS", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="Lab Master - InPlanet", page_icon="🧪", layout="wide")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_URL = "https://cdn.prod.website-files.com/6a1be4c81b887a02620b0bb5/6a1ea2aab6347c3c4ae592a8_inplanet-logo.svg"
 TEMPO_INATIVIDADE = 600
 
-# --- RESOLUÇÃO ABSOLUTA DA LOGO DA CAPIVARA ---
-def obter_caminho_logo():
-    """Garante a localização da imagem da capivara independente do SO/Linux no Streamlit Cloud."""
-    candidatos = [
-        "logo_labmaster.jpg", "logo_labmaster.jpeg", "logo_labmaster.png",
-        "capivara.jpg", "capivara.png", "logo.png"
-    ]
-    for nome in candidatos:
-        caminho_completo = os.path.join(BASE_DIR, nome)
-        if os.path.exists(caminho_completo):
-            return caminho_completo
-    return None
-
-def renderizar_logo(largura=200):
-    caminho = obter_caminho_logo()
-    if caminho:
-        st.image(caminho, width=largura)
-    else:
-        st.markdown(f"""
-            <div style="text-align: center; margin-bottom: 1rem;">
-                <h1 style="color: #3A6B52; font-size: 2.2rem; font-weight: 800;">🧪 Lab Master</h1>
-                <p style="color: #9AABA0; margin-top: -10px;">InPlanet LMS - ISO/IEC 17025</p>
-            </div>
-        """, unsafe_allow_html=True)
-
-# --- CSS DE ALTO CONTRASTE (ESTILO INPLANET) ---
+# --- CSS DE ALTO CONTRASTE E ESTILIZAÇÃO DOS HUB CARDS ---
 st.markdown("""
     <style>
     :root {
@@ -58,6 +31,8 @@ st.markdown("""
         border-radius: 12px !important;
         padding: 2rem !important;
     }
+
+    /* INPUTS GERAIS */
     div[data-testid="stTextInput"] input,
     div[data-testid="stPasswordInput"] input,
     div[data-testid="stNumberInput"] input,
@@ -72,71 +47,99 @@ st.markdown("""
         font-weight: 600 !important;
         text-transform: uppercase;
     }
+
+    /* OVERRIDE DA CAIXA DE DATA */
+    div[data-testid="stDateInput"] { background-color: transparent !important; }
     div[data-testid="stDateInput"] *,
-    div[data-testid="stDateInput"] input {
+    div[data-testid="stDateInput"] div,
+    div[data-testid="stDateInput"] input,
+    div[data-testid="stDateInput"] [data-baseweb="input"],
+    div[data-testid="stDateInput"] [data-baseweb="base-input"] {
         background-color: #FFFFFF !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
         font-weight: 600 !important;
     }
+    div[data-testid="stDateInput"] [data-baseweb="input"] {
+        border: 2px solid var(--inplanet-green) !important;
+        border-radius: 8px !important;
+    }
+
+    /* DROPDOWNS E CALENDÁRIOS */
     ul[role="listbox"], div[data-baseweb="popover"], div[data-baseweb="menu"],
     div[data-baseweb="datepicker"], div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
     }
-    ul[role="listbox"] *, div[data-baseweb="popover"] *, div[data-baseweb="menu"] * {
+    ul[role="listbox"] *, div[data-baseweb="popover"] *, div[data-baseweb="menu"] *,
+    div[data-baseweb="datepicker"] *, div[data-baseweb="calendar"] * {
+        background-color: #FFFFFF !important;
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
         font-weight: 600 !important;
     }
-    .stButton > button, div[data-testid="stFormSubmitButton"] > button {
+
+    /* ÍCONES */
+    div[data-testid="stSelectbox"] svg, div[data-testid="stDateInput"] svg,
+    div[data-testid="stPasswordInput"] button svg {
+        fill: #000000 !important;
+        color: #000000 !important;
+        background-color: transparent !important;
+    }
+
+    /* UPLOAD DE ARQUIVOS */
+    div[data-testid="stFileUploader"] > section {
+        background-color: #FFFFFF !important;
+        border: 2px dashed var(--inplanet-green) !important;
+        border-radius: 8px !important;
+    }
+    div[data-testid="stFileUploader"] section div, div[data-testid="stFileUploader"] section span {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }
+
+    /* BOTÕES */
+    .stButton > button, div[data-testid="stFormSubmitButton"] > button,
+    div[data-testid="stFileUploader"] section button {
         background-color: var(--inplanet-green) !important;
         color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
         padding: 0.6rem 1rem !important;
     }
-    .stButton > button:hover { background-color: #487F63 !important; }
-    div[data-testid="stTextInput"] label, div[data-testid="stSelectbox"] label,
-    div[data-testid="stNumberInput"] label, div[data-testid="stTextArea"] label,
-    div[data-testid="stDateInput"] label, div[data-testid="stFileUploader"] label {
+    .stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover { 
+        background-color: #487F63 !important; 
+    }
+
+    /* LABELS E EXPANDERS */
+    div[data-testid="stTextInput"] label, div[data-testid="stPasswordInput"] label,
+    div[data-testid="stNumberInput"] label, div[data-testid="stSelectbox"] label,
+    div[data-testid="stTextArea"] label, div[data-testid="stDateInput"] label,
+    div[data-testid="stFileUploader"] label {
+        color: #F0F5F2 !important;
+        -webkit-text-fill-color: #F0F5F2 !important;
+        background-color: transparent !important;
+        font-weight: 600 !important;
+    }
+    
+    div[data-testid="stExpander"] details summary p {
         color: #F0F5F2 !important;
         font-weight: 600 !important;
+        font-size: 1.05rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- CONEXÃO PROTEGIDA SUPABASE ---
+# --- CONEXÃO E FUNÇÕES AUXILIARES ---
 @st.cache_resource
 def init_connection():
-    try:
-        url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
-        key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
-        if not url or not key:
-            st.error("⚠️ Secrets 'SUPABASE_URL' ou 'SUPABASE_KEY' ausentes.")
-            st.stop()
-        return create_client(url, key)
-    except Exception as e:
-        st.error(f"❌ Erro ao conectar com Supabase: {e}")
-        st.stop()
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase: Client = init_connection()
 
-# --- FUNÇÕES DE SUPORTE E NOTIFICAÇÃO SMTP ---
 def hash_senha(senha_plana):
     return hashlib.sha256(senha_plana.encode()).hexdigest()
-
-def buscar_equipamentos_seguro():
-    try:
-        res = supabase.table("equipamentos").select("*").eq("is_deleted", False).execute()
-        return res.data or []
-    except Exception:
-        try:
-            res = supabase.table("equipamentos").select("*").execute()
-            return res.data or []
-        except Exception as e:
-            st.error(f"Erro de consulta na tabela 'equipamentos': {e}")
-            return []
 
 def obter_lista_gestores():
     try:
@@ -151,22 +154,31 @@ def obter_lista_gestores():
 
 def enviar_notificacao_email(destinatario, assunto, mensagem_corpo):
     smtp_cfg = st.secrets.get("smtp")
+    
     if not smtp_cfg:
+        st.error("❌ ERRO: A configuração '[smtp]' não foi encontrada no arquivo secrets.toml.")
         return False
+        
     try:
         msg = MIMEMultipart()
         msg["From"] = smtp_cfg["user"]
         msg["To"] = destinatario
         msg["Subject"] = assunto
-        msg.attach(MIMEText(mensagem_corpo, "plain", "utf-8"))
+        msg.attach(MIMEText(mensagem_corpo, "plain", "utf-8")) 
+
         with smtplib.SMTP(smtp_cfg["server"], int(smtp_cfg["port"])) as server:
             server.ehlo()
             server.starttls()
             server.login(smtp_cfg["user"], smtp_cfg["password"])
             server.send_message(msg)
+            
         return True
+        
+    except smtplib.SMTPAuthenticationError:
+        st.error("❌ ERRO DE LOGIN SMTP: Usuário ou Senha incorretos. Lembre-se de usar a 'Senha de Aplicativo'.")
+        return False
     except Exception as e:
-        st.error(f"❌ Falha ao enviar e-mail: {e}")
+        st.error(f"❌ ERRO GERAL SMTP: Falha ao conectar com o servidor. Detalhe: {e}")
         return False
 
 def upload_pdf(file, prefixo):
@@ -177,10 +189,10 @@ def upload_pdf(file, prefixo):
         )
         return supabase.storage.from_("certificados").get_public_url(nome_arquivo)
     except Exception as e:
-        st.error(f"Erro no upload do PDF: {e}")
+        st.error(f"Erro ao salvar PDF: {e}")
         return None
 
-# --- GERENCIAMENTO DE SESSÃO E EXPIRAÇÃO POR INATIVIDADE ---
+# --- GESTÃO DE SESSÃO E TIMEOUT ---
 agora = time.time()
 if "session_user" in st.query_params and "session_perfil" in st.query_params:
     st.session_state["autenticado"] = True
@@ -191,44 +203,81 @@ if st.session_state.get("autenticado", False):
     if "ultima_atividade" in st.session_state and (agora - st.session_state["ultima_atividade"]) > TEMPO_INATIVIDADE:
         st.session_state.clear()
         st.query_params.clear()
-        st.warning("⚠️ Sessão expirada por inatividade.")
+        st.warning("⚠️ Sessão expirada após 10 minutos de inatividade. Faça login novamente.")
         st.rerun()
     st.session_state["ultima_atividade"] = agora
 
-# --- TELA DE LOGIN COM VALIDAÇÃO DE DOMÍNIO ---
+    st.components.v1.html("""
+        <script>
+        var timer = new Date().getTime();
+        const reset = () => { timer = new Date().getTime(); };
+        ['mousemove', 'keypress', 'click', 'scroll'].forEach(e => window.addEventListener(e, reset));
+        setInterval(() => { if (new Date().getTime() - timer >= 600000) window.location.reload(); }, 15000);
+        </script>
+    """, height=0, width=0)
+
+# --- TELA DE LOGIN ---
 if not st.session_state.get("autenticado", False):
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
-        renderizar_logo(largura=220)
-        st.markdown("<h2 style='text-align: center;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #9AABA0;'>Acesso Restrito - @inplanet.earth</p>", unsafe_allow_html=True)
+        logo_login = None
+        for nome_img in ["logo_labmaster.jpg", "logo_labmaster.png", "logo_labmaster.jpeg"]:
+            if os.path.exists(nome_img):
+                logo_login = nome_img
+                break
+                
+        if logo_login:
+            st.image(logo_login, use_container_width=True)
+        else:
+            st.markdown(f"""
+                <div style="text-align: center; margin-bottom: 1.2rem;">
+                    <a href="/" target="_self"><img src="{LOGO_URL}" style="width: 220px; filter: brightness(0) invert(1);" /></a>
+                </div>
+            """, unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center;'>🔐 Lab Master</h2>", unsafe_allow_html=True)
+            
+        st.markdown("<p style='text-align: center; color: #9AABA0;'>Acesso Restrito - InPlanet LMS</p>", unsafe_allow_html=True)
         
         with st.form("login_form"):
             email_input = st.text_input("E-mail Institucional")
             senha_input = st.text_input("Senha", type="password")
             if st.form_submit_button("Entrar no Sistema", use_container_width=True):
-                email_clean = email_input.strip().lower()
-                if not email_clean.endswith("@inplanet.earth"):
-                    st.error("❌ Somente e-mails do domínio corporativo @inplanet.earth são autorizados.")
-                elif email_clean and senha_input:
-                    res = supabase.table("usuarios").select("*").eq("email", email_clean).eq("senha", hash_senha(senha_input)).execute()
+                if email_input and senha_input:
+                    res = supabase.table("usuarios").select("*").eq("email", email_input).eq("senha", hash_senha(senha_input)).execute()
                     if res.data:
-                        st.session_state.update({
-                            "autenticado": True, 
-                            "user_email": res.data[0]["email"], 
-                            "user_perfil": res.data[0]["perfil"], 
-                            "ultima_atividade": time.time()
-                        })
+                        st.session_state.update({"autenticado": True, "user_email": res.data[0]["email"], "user_perfil": res.data[0]["perfil"], "ultima_atividade": time.time()})
                         st.query_params["session_user"] = res.data[0]["email"]
                         st.query_params["session_perfil"] = res.data[0]["perfil"]
                         st.rerun()
                     else:
-                        st.error("❌ Credenciais inválidas.")
+                        st.error("❌ E-mail ou senha incorretos.")
                 else:
                     st.warning("Preencha todos os campos.")
+        
+        with st.expander("🔑 Esqueci minha senha"):
+            with st.form("reset_form"):
+                email_reset = st.text_input("Digite seu E-mail Institucional para solicitar o reset")
+                if st.form_submit_button("Solicitar Nova Senha", use_container_width=True):
+                    if email_reset:
+                        gestores = obter_lista_gestores()
+                        assunto = f"🔐 Solicitação de Reset de Senha: {email_reset}"
+                        corpo = f"Atenção Administrador,\n\nO usuário '{email_reset}' solicitou o reset de senha de acesso ao Lab Master.\n\nAcesse o sistema, vá até o menu 'Gestão de Acessos' e atualize a senha deste usuário."
+                        
+                        enviado = False
+                        for gestor in gestores:
+                            if enviar_notificacao_email(gestor, assunto, corpo):
+                                enviado = True
+                            
+                        if enviado:
+                            st.success("✅ Solicitação enviada! Um administrador entrará em contato em breve.")
+                            time.sleep(3)
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Por favor, informe o seu e-mail institucional.")
+                        
     st.stop()
 
-# --- SIDEBAR E NAVEGAÇÃO ---
+# --- NAVEGAÇÃO E RBAC ---
 def selecionar_modulo(nome_modulo, pagina_inicial):
     st.session_state["modulo_ativo"] = nome_modulo
     st.session_state["pagina_ativa"] = pagina_inicial
@@ -238,31 +287,30 @@ if "modulo_ativo" not in st.session_state:
 if "pagina_ativa" not in st.session_state:
     st.session_state["pagina_ativa"] = "🏠 Hub Principal"
 
-with st.sidebar:
-    renderizar_logo(largura=140)
-    st.divider()
-    st.title("👤 Meu Perfil")
-    st.write(f"**E-mail:** {st.session_state['user_email']}")
-    st.write(f"**Permissão:** {st.session_state['user_perfil']}")
-    
-    if st.button("🚪 Sair do Sistema", use_container_width=True):
-        st.session_state.clear()
-        st.query_params.clear()
-        st.rerun()
+home_link = f"/?session_user={st.session_state['user_email']}&session_perfil={st.session_state['user_perfil']}"
+st.sidebar.markdown(f"""
+    <div style="text-align: center; margin-bottom: 1rem;">
+        <a href="{home_link}" target="_self"><img src="{LOGO_URL}" style="width: 150px; filter: brightness(0) invert(1);" /></a>
+    </div>
+""", unsafe_allow_html=True)
 
 st.sidebar.divider()
+st.sidebar.title("👤 Meu Perfil")
+st.sidebar.write(f"**E-mail:** {st.session_state['user_email']}")
+st.sidebar.write(f"**Permissão:** {st.session_state['user_perfil']}")
+
+if st.sidebar.button("🚪 Sair do Sistema"):
+    st.session_state.clear()
+    st.query_params.clear()
+    st.rerun()
+
+st.sidebar.divider()
+
 perfil = st.session_state["user_perfil"]
 
 if st.session_state["modulo_ativo"] == "Equipamentos":
     st.sidebar.markdown("### 🔬 Módulo Equipamentos")
-    opcoes_menu = [
-        "📌 Inventário & Status", 
-        "🧪 Admissão ('Estado Zero')",
-        "🛡️ Modo Auditoria (ISO 17025)", 
-        "🚨 Ocorrências & Seção 7.10", 
-        "📈 Prontuário & Tendências", 
-        "📅 Agendamentos & Logística"
-    ]
+    opcoes_menu = ["📌 Inventário & Status", "🛡️ Modo Auditoria (ISO 17025)", "📈 Prontuário & Tendências", "📅 Agendamentos & Logística"]
     if perfil in ["Admin", "Tecnico"]:
         opcoes_menu.extend(["📝 Gerenciar Equipamentos", "📐 Calibrações & Qualificações", "🛠️ Manutenções & Intervenções"])
     if perfil == "Admin":
@@ -272,7 +320,7 @@ elif st.session_state["modulo_ativo"] == "Reagentes":
     opcoes_menu = ["📦 Controle de Estoque"]
     if perfil == "Admin":
         opcoes_menu.append("👥 Gestão de Acessos")
-else:
+else: 
     st.sidebar.markdown("### 🏠 Visão Geral")
     opcoes_menu = ["🏠 Hub Principal"]
     if perfil == "Admin":
@@ -281,7 +329,7 @@ else:
 if st.session_state["pagina_ativa"] not in opcoes_menu:
     st.session_state["pagina_ativa"] = opcoes_menu[0]
 
-menu = st.sidebar.radio("Navegação", opcoes_menu, key="radio_dinamico")
+menu = st.sidebar.radio("Navegação", opcoes_menu, index=opcoes_menu.index(st.session_state["pagina_ativa"]), key="radio_dinamico")
 st.session_state["pagina_ativa"] = menu
 
 if st.session_state["modulo_ativo"] != "Hub":
@@ -291,17 +339,31 @@ if st.session_state["modulo_ativo"] != "Hub":
 user_email = st.session_state["user_email"]
 
 if menu != "🏠 Hub Principal":
-    st.title("🧪 Lab Master LMS")
+    st.title("🧪 Lab Master")
 
 # ==============================================================================
 # 0. HUB PRINCIPAL
 # ==============================================================================
 if menu == "🏠 Hub Principal":
-    col_h1, col_h2, col_h3 = st.columns([1, 1.2, 1])
-    with col_h2:
-        renderizar_logo(largura=260)
-        
-    st.markdown("<h3 style='text-align: center; color: var(--inplanet-green); font-weight: 600;'>Sistema de Gestão Laboratorial ISO/IEC 17025</h3>", unsafe_allow_html=True)
+    
+    logo_capy_hub = None
+    for nome_img in ["logo_labmaster.jpg", "logo_labmaster.png", "logo_labmaster.jpeg"]:
+        if os.path.exists(nome_img):
+            logo_capy_hub = nome_img
+            break
+
+    col_lh1, col_lh2, col_lh3 = st.columns([1, 1.1, 1])
+    with col_lh2:
+        if logo_capy_hub:
+            st.image(logo_capy_hub, use_container_width=True)
+        else:
+            st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>Lab Master</h1>", unsafe_allow_html=True)
+            
+    st.markdown("""
+        <div style="text-align: center; padding-bottom: 1.5rem;">
+            <h3 style="color: var(--inplanet-green); font-weight: 400; margin-top: 0px;">Sistema de Gestão Laboratorial</h3>
+        </div>
+    """, unsafe_allow_html=True)
     
     card_style = """
         background-color: var(--inplanet-card); 
@@ -323,12 +385,12 @@ if menu == "🏠 Hub Principal":
                 <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔬</h1>
                 <h4 style="color: #F0F5F2; margin-bottom: 0.5rem;">Gestão de Equipamentos</h4>
                 <p style="color: #9AABA0; font-size: 0.85rem; margin-bottom: 0;">
-                    Ativos, rastreabilidade metrológica, calibrações, logbook de ocorrências e seção 7.10.
+                    Controle de ativos, inventário operacional, calibrações, manutenções, auditoria ISO 17025 e agendamentos logísticos.
                 </p>
             </div>
         """, unsafe_allow_html=True)
         st.write("")
-        st.button("Acessar Equipamentos ➔", on_click=selecionar_modulo, args=("Equipamentos", "📌 Inventário & Status"), use_container_width=True, key="btn_hub_eq")
+        st.button("Acessar Módulo de Equipamentos ➔", on_click=selecionar_modulo, args=("Equipamentos", "📌 Inventário & Status"), use_container_width=True, key="btn_hub_equip")
 
     with col2:
         st.markdown(f"""
@@ -336,225 +398,781 @@ if menu == "🏠 Hub Principal":
                 <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">📦</h1>
                 <h4 style="color: #F0F5F2; margin-bottom: 0.5rem;">Reagentes & Consumíveis</h4>
                 <p style="color: #9AABA0; font-size: 0.85rem; margin-bottom: 0;">
-                    Controle de frascos, lotes, validade, Laudos de Análise (CoA) e alertas de estoque crítico.
+                    Gestão de frascos, reagentes, colunas, filtros, seringas, controle de validade e alertas de estoque de segurança.
                 </p>
             </div>
         """, unsafe_allow_html=True)
         st.write("")
-        st.button("Acessar Reagentes ➔", on_click=selecionar_modulo, args=("Reagentes", "📦 Controle de Estoque"), use_container_width=True, key="btn_hub_reag")
+        st.button("Acessar Módulo de Reagentes & Consumíveis ➔", on_click=selecionar_modulo, args=("Reagentes", "📦 Controle de Estoque"), use_container_width=True, key="btn_hub_reag")
 
 # ==============================================================================
-# 1. INVENTÁRIO & STATUS OPERACIONAL (ITEM 6.4)
+# 1. EQUIPAMENTOS - INVENTÁRIO
 # ==============================================================================
 elif menu == "📌 Inventário & Status":
-    st.header("📌 Inventário Geral e Status Operacional (Item 6.4 ISO 17025)")
-    dados_eq = buscar_equipamentos_seguro()
-    df = pd.DataFrame(dados_eq) if dados_eq else pd.DataFrame()
+    st.header("📌 Inventário Geral e Status Operacional")
+    res = supabase.table("equipamentos").select("*").execute()
+    df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
     
     if not df.empty:
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total de Ativos", len(df))
+        c1.metric("Total", len(df))
         c2.metric("Operacionais", len(df[df["status"] == "Operacional"]))
         c3.metric("Em Calibração", len(df[df["status"] == "Em Calibração"]))
-        c4.metric("Interditados / Quarentena", len(df[df["status"].isin(["Interditado / Fora de Uso", "Em Manutenção"])]))
+        c4.metric("Interditados/Manutenção", len(df[~df["status"].isin(["Operacional", "Em Calibração"])]))
         
-        cols_exibir = [c for c in ["tag", "nome", "marca", "modelo", "serial_number", "periodicidade_meses", "status"] if c in df.columns]
+        cols_exibir = [c for c in ["tag", "nome", "marca", "modelo", "serial_number", "periodicidade_meses", "status", "modalidade_calibracao", "registrado_por"] if c in df.columns]
         st.dataframe(df[cols_exibir], use_container_width=True)
+
+        st.divider()
+        st.subheader("🗓️ Planejamento Logístico de Envio (30, 60 e 90 dias)")
+        
+        calib_res = supabase.table("calibracoes").select("equip_tag, data_venc, registrado_por").execute()
+        if calib_res.data:
+            df_calib = pd.DataFrame(calib_res.data)
+            df_calib['data_venc_dt'] = pd.to_datetime(df_calib['data_venc'])
+            hoje = pd.Timestamp.now().normalize()
+            
+            df_calib = df_calib.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
+            df_calib['dias_restantes'] = (df_calib['data_venc_dt'] - hoje).dt.days
+            df_calib = df_calib.merge(df, left_on='equip_tag', right_on='tag', how='left')
+            
+            df_30 = df_calib[df_calib['dias_restantes'] <= 30].sort_values('dias_restantes')
+            df_60 = df_calib[(df_calib['dias_restantes'] > 30) & (df_calib['dias_restantes'] <= 60)].sort_values('dias_restantes')
+            df_90 = df_calib[(df_calib['dias_restantes'] > 60) & (df_calib['dias_restantes'] <= 90)].sort_values('dias_restantes')
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("🚨 Urgente (Até 30 dias)", f"{len(df_30)} eq.")
+            m2.metric("⚠️ Médio Prazo (31-60 dias)", f"{len(df_60)} eq.")
+            m3.metric("✈️ Longo Prazo (61-90 dias)", f"{len(df_90)} eq.")
+
+            t30, t60, t90 = st.tabs(["🔴 Até 30 dias", "🟡 31 a 60 dias", "🔵 61 a 90 dias"])
+            cols_v = [c for c in ['equip_tag', 'nome', 'marca', 'modalidade_calibracao', 'data_venc', 'dias_restantes', 'status'] if c in df_calib.columns]
+
+            with t30: st.dataframe(df_30[cols_v] if not df_30.empty else pd.DataFrame(), use_container_width=True)
+            with t60: st.dataframe(df_60[cols_v] if not df_60.empty else pd.DataFrame(), use_container_width=True)
+            with t90: st.dataframe(df_90[cols_v] if not df_90.empty else pd.DataFrame(), use_container_width=True)
     else:
         st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 2. ADMISSÃO DE EQUIPAMENTOS NOVOS ("ESTADO ZERO")
+# 2. MODO AUDITORIA
 # ==============================================================================
-elif menu == "🧪 Admissão ('Estado Zero')":
-    st.header("🧪 Comissionamento e Liberação Técnica de Equipamentos Novos")
-    st.caption("Conforme a ISO 17025, equipamentos novos permanecem bloqueados para ensaios até a aprovação do 1º certificado.")
+elif menu == "🛡️ Modo Auditoria (ISO 17025)":
+    st.header("🛡️ Visão de Conformidade Metrológica - Auditoria")
+    st.caption("Relatório executivo consolidado com o status atual dos equipamentos e acesso à documentação vigente.")
     
-    dados_eq = buscar_equipamentos_seguro()
-    df_eq = pd.DataFrame(dados_eq) if dados_eq else pd.DataFrame()
+    res_eq = supabase.table("equipamentos").select("*").execute()
+    df_eq = pd.DataFrame(res_eq.data or [])
     
-    if not df_eq.empty and "status" in df_eq.columns:
-        df_comm = df_eq[df_eq["status"] == "Em Comissionamento"]
-        if not df_comm.empty:
-            st.dataframe(df_comm[["tag", "nome", "marca", "modelo", "serial_number"]], use_container_width=True)
+    if not df_eq.empty:
+        res_c = supabase.table("calibracoes").select("*").execute()
+        df_c = pd.DataFrame(res_c.data or [])
+        
+        if not df_c.empty:
+            df_c['data_venc_dt'] = pd.to_datetime(df_c['data_venc'])
+            df_c_ult = df_c.sort_values('data_venc_dt', ascending=False).drop_duplicates('equip_tag')
+            df_auditoria = df_eq.merge(df_c_ult, left_on='tag', right_on='equip_tag', how='left')
+            
+            df_auditoria['Aptidão Metrológica'] = df_auditoria['resultado'].apply(
+                lambda x: "✅ Aprovado / Conforme" if x == "Aprovado" else ("❌ Reprovado" if x == "Reprovado" else "⏳ Pendente")
+            )
+            
+            col_audit = ["tag", "nome", "marca", "modelo", "serial_number", "status", "Aptidão Metrológica", "data_calib", "data_venc", "certificado", "pdf_url"]
+            cols_exist = [c for c in col_audit if c in df_auditoria.columns]
+            
+            df_final = df_auditoria[cols_exist].rename(columns={
+                'tag': 'TAG', 'nome': 'Equipamento', 'marca': 'Marca', 'modelo': 'Modelo',
+                'serial_number': 'Nº Série', 'status': 'Status Atual', 'data_calib': 'Última Calibração',
+                'data_venc': 'Vencimento', 'certificado': 'Certificado nº', 'pdf_url': 'Documento'
+            })
+            
+            col_f1, col_f2 = st.columns([2, 1])
+            termo_busca = col_f1.text_input("🔍 Pesquisar por TAG, Nome, Marca ou Nº de Série:", placeholder="Ex: BALA-001, Balança, Shimadzu...")
+            
+            opcoes_aptidao = df_final["Aptidão Metrológica"].dropna().unique().tolist()
+            filtro_aptidao = col_f2.multiselect("Filtrar por Aptidão Metrológica:", options=opcoes_aptidao, default=opcoes_aptidao)
+            
+            df_filtrado = df_final[df_final["Aptidão Metrológica"].isin(filtro_aptidao)]
+            
+            if termo_busca:
+                termo = termo_busca.strip().lower()
+                df_filtrado = df_filtrado[
+                    df_filtrado['TAG'].astype(str).str.lower().str.contains(termo, na=False) |
+                    df_filtrado['Equipamento'].astype(str).str.lower().str.contains(termo, na=False) |
+                    df_filtrado['Marca'].astype(str).str.lower().str.contains(termo, na=False) |
+                    df_filtrado['Nº Série'].astype(str).str.lower().str.contains(termo, na=False)
+                ]
+            
+            st.dataframe(
+                df_filtrado, 
+                column_config={"Documento": st.column_config.LinkColumn("Certificado PDF")}, 
+                use_container_width=True
+            )
         else:
-            st.info("Nenhum equipamento em fase de comissionamento ('Estado Zero').")
+            st.info("Nenhuma calibração cadastrada no sistema.")
     else:
-        st.info("Sem dados disponíveis.")
+        st.info("Nenhum equipamento cadastrado.")
 
 # ==============================================================================
-# 3. MÓDULO DE OCORRÊNCIAS & TRABALHO NÃO CONFORME (ITEM 7.10)
+# 3. PRONTUÁRIO & TENDÊNCIAS
 # ==============================================================================
-elif menu == "🚨 Ocorrências & Seção 7.10":
-    st.header("🚨 Logbook de Ocorrências e Trabalho Não Conforme (7.10)")
+elif menu == "📈 Prontuário & Tendências":
+    st.header("📈 Prontuário do Equipamento e Análise de Tendências")
+    eq_res = supabase.table("equipamentos").select("tag, nome").execute()
     
-    tab1, tab2 = st.tabs(["📝 Logbook / Inserir Evento", "🔍 Investigação Retroativa 7.10"])
-    
-    with tab1:
-        dados_eq = buscar_equipamentos_seguro()
-        if dados_eq:
-            dict_eq = {f"{e['tag']} - {e['nome']}": e['tag'] for e in dados_eq}
-            sel_label = st.selectbox("Equipamento Relacionado *", list(dict_eq.keys()))
-            tag_sel = dict_eq[sel_label]
+    if eq_res.data:
+        opcoes_eq = {f"{i['tag']} - {i['nome']}": i['tag'] for i in eq_res.data}
+        tag_alvo = opcoes_eq[st.selectbox("Selecione o equipamento para análise detalhada:", list(opcoes_eq.keys()))]
+        
+        c_res = supabase.table("calibracoes").select("*").eq("equip_tag", tag_alvo).execute()
+        m_res = supabase.table("manutencoes").select("*").eq("equip_tag", tag_alvo).execute()
+        
+        df_c = pd.DataFrame(c_res.data or [])
+        df_m = pd.DataFrame(m_res.data or [])
+        
+        tot_corretivas = len(df_m[df_m["tipo"] == "Corretiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
+        tot_preventivas = len(df_m[df_m["tipo"] == "Preventiva"]) if not df_m.empty and "tipo" in df_m.columns else 0
+        tot_reprovacoes = len(df_c[df_c["resultado"] == "Reprovado"]) if not df_c.empty and "resultado" in df_c.columns else 0
+        
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Manutenções Corretivas", tot_corretivas)
+        col2.metric("Manutenções Preventivas", tot_preventivas)
+        col3.metric("Reprovações em Calibração", tot_reprovacoes)
+        col4.metric("Total de Registros", len(df_c) + len(df_m))
+        
+        st.subheader("🔍 Diagnóstico da Gestão de Riscos")
+        if tot_corretivas >= 2:
+            st.error(f"🚨 **Alerta de Falha Crônica:** Este equipamento acumulou {tot_corretivas} manutenções corretivas. Recomenda-se abrir uma Investigação de Causa Raiz / Ação Corretiva.")
+        elif tot_corretivas == 1:
+            st.warning("⚠️ **Atenção:** Equipamento possui 1 registro de manutenção corretiva. Monitore as próximas intervenções.")
+        else:
+            st.success("✅ **Baixa taxa de falha:** Nenhuma manutenção corretiva crítica até o momento.")
             
-            with st.form("form_evento_log"):
-                tipo_ev = st.selectbox("Tipo de Evento *", [
-                    "FALHA_QUEBRA", "ENVIO_CALIBRACAO", "ENVIO_MANUTENCAO", 
-                    "RETORNO_FORNECEDOR", "MUDANCA_LOCAL"
-                ])
-                desc = st.text_area("Descrição Detalhada da Ocorrência *")
-                fornecedor = st.text_input("Fornecedor / Laboratório Externo (se aplicável)")
+        if tot_reprovacoes > 0:
+            st.error(f"🚨 **Histórico de Deriva Metrológica:** O equipamento possui {tot_reprovacoes} calibração(ões) reprovada(s). Avalie os ensaios realizados no período correspondente.")
+
+        st.subheader("📜 Linha do Tempo Histórica Unificada")
+        eventos = []
+        if not df_c.empty:
+            for _, r in df_c.iterrows():
+                eventos.append({
+                    "Data": r.get("data_calib"),
+                    "Categoria": "Calibração",
+                    "Detalhe / Status": f"Resultado: {r.get('resultado')} (Cert: {r.get('certificado', 'N/A')})",
+                    "Registrado por": r.get("registrado_por")
+                })
+        if not df_m.empty:
+            for _, r in df_m.iterrows():
+                eventos.append({
+                    "Data": r.get("data_intervencao"),
+                    "Categoria": "Manutenção",
+                    "Detalhe / Status": f"Tipo: {r.get('tipo')} | Descrição: {r.get('descricao')}",
+                    "Registrado por": r.get("registrado_por")
+                })
                 
-                if st.form_submit_button("Registrar Ocorrência"):
-                    supabase.table("eventos_logbook").insert({
-                        "equip_tag": tag_sel,
-                        "tipo_evento": tipo_ev,
-                        "descricao": desc,
-                        "fornecedor_nome": fornecedor,
-                        "registrado_por": user_email
-                    }).execute()
+        df_timeline = pd.DataFrame(eventos)
+        if not df_timeline.empty:
+            df_timeline['Data_DT'] = pd.to_datetime(df_timeline['Data'])
+            df_timeline = df_timeline.sort_values('Data_DT', ascending=False)
+            st.dataframe(df_timeline[["Data", "Categoria", "Detalhe / Status", "Registrado por"]], use_container_width=True)
+        else:
+            st.info("Nenhuma calibração ou manutenção registrada para este equipamento ainda.")
+    else:
+        st.info("Nenhum equipamento cadastrado.")
+
+# ==============================================================================
+# AGENDAMENTOS, PROGRAMAÇÃO DE PARADAS E LOGÍSTICA DE FRETES
+# ==============================================================================
+elif menu == "📅 Agendamentos & Logística":
+    st.header("📅 Agendamentos, Paradas Programadas & Logística")
+    st.caption("Planejamento de fora de uso, controle de envio/destino de equipamentos, custos de transporte e gestão de Notas Fiscais (Req. 6.6 ISO 17025).")
+    
+    abas_ag = ["🗓️ Cronograma & Paradas", "📊 Custos Logísticos"]
+    if perfil in ["Admin", "Tecnico"]:
+        abas_ag.insert(1, "➕ Intervenção Manual / Fora de Prazo")
+        
+    tabs = st.tabs(abas_ag)
+    
+    try:
+        res_ag = supabase.table("agendamentos_logistica").select("*").execute()
+        df_ag = pd.DataFrame(res_ag.data or [])
+    except Exception:
+        df_ag = pd.DataFrame()
+        st.warning("⚠️ Certifique-se de executar o script SQL no Supabase para criar a tabela 'agendamentos_logistica'.")
+
+    with tabs[0]:
+        if not df_ag.empty:
+            c_f1, c_f2 = st.columns([2, 1])
+            termo_ag = c_f1.text_input("🔍 Pesquisar por TAG, Fornecedor ou Evento:", placeholder="Ex: BALA-001, RBC Calibrações, Preventiva...")
+            filtro_st = c_f2.multiselect("Status do Agendamento:", options=df_ag["status"].unique().tolist(), default=df_ag["status"].unique().tolist())
+            
+            df_f = df_ag[df_ag["status"].isin(filtro_st)]
+            if termo_ag:
+                t_lower = termo_ag.strip().lower()
+                df_f = df_f[
+                    df_f["equip_tag"].astype(str).str.lower().str.contains(t_lower) |
+                    df_f["destino_fornecedor"].astype(str).str.lower().str.contains(t_lower) |
+                    df_f["tipo_evento"].astype(str).str.lower().str.contains(t_lower)
+                ]
+            
+            st.subheader("Lista de Paradas e Envios de Equipamentos")
+            
+            cols_exibir = ["equip_tag", "tipo_evento", "data_inicio", "data_fim", "destino_fornecedor", "custo_transporte", "custo_servico", "status", "pdf_nf_url", "registrado_por"]
+            cols_exist = [c for c in cols_exibir if c in df_f.columns]
+            
+            df_exib = df_f[cols_exist].rename(columns={
+                "equip_tag": "TAG", "tipo_evento": "Evento", "data_inicio": "Início Parada",
+                "data_fim": "Previsão Retorno", "destino_fornecedor": "Destino / Laboratório",
+                "custo_transporte": "Frete (R$)", "custo_servico": "Serviço (R$)",
+                "status": "Status", "pdf_nf_url": "Nota Fiscal", "registrado_por": "Registrado por"
+            })
+            
+            st.dataframe(
+                df_exib,
+                column_config={"Nota Fiscal": st.column_config.LinkColumn("PDF NF")},
+                use_container_width=True
+            )
+        else:
+            st.info("Nenhum agendamento de envio ou parada registrado no momento.")
+
+    if perfil in ["Admin", "Tecnico"]:
+        with tabs[1]:
+            st.subheader("Programar Intervenção Fora de Prazo / Manutenção de Emergência")
+            st.caption("Utilize este formulário para manutenções corretivas, calibrações extraordinárias ou desvios de rotina.")
+            
+            eq_res = supabase.table("equipamentos").select("tag, nome").execute()
+            tags_eq = [f"{i['tag']} - {i['nome']}" for i in eq_res.data] if eq_res.data else []
+            
+            if tags_eq:
+                with st.form("form_agendamento", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    equip_sel = col1.selectbox("Selecione o Equipamento *", tags_eq)
+                    tipo_evento = col2.selectbox("Tipo de Intervenção Extraordinária *", ["Manutenção Corretiva (Urgente)", "Calibração Extraordinária", "Manutenção Preventiva Fora de Prazo", "Qualificação OQ/PQ Especial"])
                     
-                    if tipo_ev == "FALHA_QUEBRA":
-                        supabase.table("equipamentos").update({"status": "Interditado / Fora de Uso"}).eq("tag", tag_sel).execute()
-                        supabase.table("trabalho_nao_conforme").insert({
-                            "equip_tag": tag_sel,
-                            "origem_evento": "Falha Operacional Registrada no Logbook",
-                            "analise_impacto_retroativa": f"INVESTIGAÇÃO AUTOMÁTICA ISO 17025 (SEÇÃO 7.10): Equipamento {tag_sel} apresentou falha. Avaliar a validade dos ensaios executados desde a última checagem.",
+                    data_inicio = col1.date_input("Data de Início da Indisponibilidade *")
+                    data_fim = col2.date_input("Previsão de Retorno / Término *")
+                    
+                    destino_fornecedor = col1.text_input("Destino / Fornecedor Contratado *", placeholder="Ex: Lab Calibrations SP / Transportadora X")
+                    status_ag = col2.selectbox("Status Inicial", ["Programado", "Em Trânsito", "Em Manutenção/Calibração", "Concluído"])
+                    
+                    c_c1, c_c2 = st.columns(2)
+                    custo_transporte = c_c1.number_input("Custo de Transporte / Frete (R$)", min_value=0.0, step=10.0)
+                    custo_servico = c_c2.number_input("Custo do Serviço de Calibração/Manutenção (R$)", min_value=0.0, step=50.0)
+                    
+                    obs_ag = st.text_area("Justificativa da Intervenção Extraordinária / Rastreador")
+                    pdf_nf = st.file_uploader("Anexar Nota Fiscal / Conhecimento de Transporte (PDF)", type=["pdf"])
+                    
+                    if st.form_submit_button("Salvar Intervenção Manual"):
+                        tag_pura = equip_sel.split(" - ")[0]
+                        pdf_url = upload_pdf(pdf_nf, f"NF_{tag_pura}") if pdf_nf else None
+                        
+                        dado_ag = {
+                            "equip_tag": tag_pura,
+                            "tipo_evento": tipo_evento,
+                            "data_inicio": str(data_inicio),
+                            "data_fim": str(data_fim),
+                            "destino_fornecedor": destino_fornecedor,
+                            "custo_transporte": float(custo_transporte),
+                            "custo_servico": float(custo_servico),
+                            "status": status_ag,
+                            "pdf_nf_url": pdf_url,
+                            "observacoes": obs_ag,
                             "registrado_por": user_email
-                        }).execute()
-                        st.error(f"🚨 Falha registrada! Equipamento {tag_sel} INTERDITADO e enviado para investigação do item 7.10.")
+                        }
+                        
+                        supabase.table("agendamentos_logistica").insert(dado_ag).execute()
+                        
+                        if status_ag in ["Em Trânsito", "Em Manutenção/Calibração"]:
+                            novo_st_eq = "Em Calibração" if "Calibração" in tipo_evento else "Em Manutenção"
+                            supabase.table("equipamentos").update({"status": novo_st_eq}).eq("tag", tag_pura).execute()
+                            
+                        st.success(f"Agendamento do equipamento {tag_pura} registrado com sucesso!")
+                        st.rerun()
+            else:
+                st.info("Cadastre equipamentos antes de programar agendamentos.")
+
+    idx_custos = 2 if perfil in ["Admin", "Tecnico"] else 1
+    with tabs[idx_custos]:
+        st.subheader("📈 Resumo de Custos Logísticos e Manutenção Externa")
+        if not df_ag.empty:
+            tot_frete = df_ag["custo_transporte"].sum()
+            tot_servicos = df_ag["custo_servico"].sum()
+            tot_geral = tot_frete + tot_servicos
+            
+            mc1, mc2, mc3 = st.columns(3)
+            mc1.metric("Total Gasto em Frete/Logística", f"R$ {tot_frete:,.2f}")
+            mc2.metric("Total Gasto em Serviços", f"R$ {tot_servicos:,.2f}")
+            mc3.metric("Investimento Total Acumulado", f"R$ {tot_geral:,.2f}")
+            
+            st.divider()
+            st.markdown("##### Gastos por Equipamento")
+            df_groupby = df_ag.groupby("equip_tag")[["custo_transporte", "custo_servico"]].sum().reset_index()
+            df_groupby["Total (R$)"] = df_groupby["custo_transporte"] + df_groupby["custo_servico"]
+            st.dataframe(df_groupby.rename(columns={"equip_tag": "TAG", "custo_transporte": "Fretes (R$)", "custo_servico": "Serviços (R$)"}), use_container_width=True)
+        else:
+            st.info("Nenhum dado financeiro registrado ainda.")
+
+# ==============================================================================
+# 4. REAGENTES E CONSUMÍVEIS
+# ==============================================================================
+elif menu == "📦 Controle de Estoque":
+    st.header("📦 Gestão de Reagentes e Consumíveis (Req. 6.6)")
+    
+    abas_reag = ["📊 Dashboard & Alertas", "📋 Catálogo de Produtos"]
+    if perfil in ["Admin", "Tecnico"]:
+        abas_reag.extend(["📥 Entrada de Lotes (CoA)", "🧪 Consumo / Baixa"])
+        
+    tabs = st.tabs(abas_reag)
+    
+    try:
+        res_cat = supabase.table("reagentes").select("*").execute()
+        df_cat = pd.DataFrame(res_cat.data or [])
+        res_lotes = supabase.table("reagentes_lotes").select("*").execute()
+        df_lotes = pd.DataFrame(res_lotes.data or [])
+    except Exception:
+        df_cat, df_lotes = pd.DataFrame(), pd.DataFrame()
+
+    with tabs[0]:
+        if not df_cat.empty and not df_lotes.empty:
+            df_ativos = df_lotes[df_lotes["status"].isin(["Aprovado", "Em Uso", "Quarentena"])]
+            estoque_atual = df_ativos.groupby("reagente_id")["quantidade_atual"].sum().reset_index() if not df_ativos.empty else pd.DataFrame(columns=["reagente_id", "quantidade_atual"])
+            
+            if not estoque_atual.empty:
+                df_dash = df_cat.merge(estoque_atual, left_on="id", right_on="reagente_id", how="left").fillna(0)
+                df_dash["Alerta"] = df_dash.apply(lambda r: "🔴 Baixo (Comprar)" if r["quantidade_atual"] <= r["estoque_minimo"] else "✅ OK", axis=1)
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Produtos Cadastrados", len(df_cat))
+                c2.metric("Lotes Físicos Ativos", len(df_ativos))
+                c3.metric("Abaixo do Mínimo", len(df_dash[df_dash["Alerta"] == "🔴 Baixo (Comprar)"]))
+                
+                st.subheader("Situação Consolidada de Estoque")
+                st.dataframe(df_dash[["codigo_interno", "nome", "unidade_medida", "quantidade_atual", "estoque_minimo", "Alerta"]].rename(columns={"codigo_interno": "Código", "nome": "Produto", "unidade_medida": "UN", "quantidade_atual": "Qtd Atual", "estoque_minimo": "Mínimo"}), use_container_width=True)
+                
+                st.subheader("⚠️ Lotes Vencendo (Próximos 30 dias)")
+                df_lotes['data_validade'] = pd.to_datetime(df_lotes['data_validade'])
+                df_lotes['dias_para_vencer'] = (df_lotes['data_validade'] - pd.Timestamp.now().normalize()).dt.days
+                lotes_vencendo = df_lotes[(df_lotes['dias_para_vencer'] <= 30) & (df_lotes["status"].isin(["Aprovado", "Em Uso"]))]
+                
+                if not lotes_vencendo.empty:
+                    lotes_vencendo = lotes_vencendo.merge(df_cat[["id", "nome", "codigo_interno"]], left_on="reagente_id", right_on="id", how="left")
+                    st.dataframe(lotes_vencendo[["codigo_interno", "nome", "numero_lote", "data_validade", "dias_para_vencer", "quantidade_atual"]], use_container_width=True)
+                else:
+                    st.success("Nenhum lote vence nos próximos 30 dias.")
+            else:
+                st.info("Nenhum lote físico ativo no estoque.")
+        else:
+            st.info("Cadastre produtos e insira lotes para visualizar o Dashboard.")
+
+    with tabs[1]:
+        if perfil in ["Admin", "Tecnico"]:
+            st.subheader("Cadastrar Novo Produto / Consumível")
+            with st.form("form_cat", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                codigo_interno = col1.text_input("Código Interno (ex: REAG-001, FILT-01) *")
+                nome = col1.text_input("Nome do Produto (Seringa, Coluna, etc.) *")
+                cas_number = col2.text_input("CAS Number / Part Number (Opcional)")
+                unidade = col2.selectbox("Unidade de Medida", ["Unidade (Un)", "Caixa (Cx)", "Pacote (Pct)", "Litros (L)", "Mililitros (mL)", "Quilogramas (kg)", "Gramas (g)"])
+                estoque_minimo = col1.number_input("Estoque Mínimo de Segurança (Alerta de Compra)", min_value=0.0, step=0.1)
+                armazenamento = col2.selectbox("Condição de Armazenamento", ["Temperatura Ambiente", "Geladeira (2 a 8°C)", "Freezer (-20°C)", "Armário de Inflamáveis", "Armário de Ácidos"])
+                
+                if st.form_submit_button("Salvar Produto no Catálogo"):
+                    if codigo_interno and nome:
+                        try:
+                            dado = {"codigo_interno": codigo_interno, "nome": nome, "cas_number": cas_number, "unidade_medida": unidade, "estoque_minimo": float(estoque_minimo), "armazenamento": armazenamento, "registrado_por": user_email}
+                            supabase.table("reagentes").insert(dado).execute()
+                            st.success(f"Produto {nome} salvo no catálogo!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar: O código interno já existe? Detalhe: {e}")
                     else:
-                        st.success("Ocorrência gravada com sucesso!")
-                    time.sleep(2)
+                        st.error("Preencha Código Interno e Nome.")
+        else:
+            st.info("🔒 Modo Leitura: Consulta de catálogo. Você não tem permissão para inserir novos itens.")
+
+        if not df_cat.empty:
+            st.divider()
+            st.subheader("Catálogo Existente")
+            st.dataframe(df_cat[["codigo_interno", "nome", "cas_number", "unidade_medida", "estoque_minimo", "armazenamento"]], use_container_width=True)
+
+    if perfil in ["Admin", "Tecnico"]:
+        with tabs[2]:
+            st.subheader("Dar Entrada em Lote / Frasco Físico")
+            if not df_cat.empty:
+                opcoes_prod = {f"{r['codigo_interno']} - {r['nome']}": r['id'] for _, r in df_cat.iterrows()}
+                with st.form("form_entrada", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    produto_sel = col1.selectbox("Produto do Catálogo *", list(opcoes_prod.keys()))
+                    numero_lote = col2.text_input("Número do Lote / Série do Fabricante *")
+                    
+                    data_fab = col1.date_input("Data de Fabricação")
+                    data_val = col2.date_input("Data de Validade *")
+                    
+                    qtd_inicial = col1.number_input("Quantidade Recebida (na unidade do produto) *", min_value=0.01, step=0.1)
+                    status_lote = col2.selectbox("Status de Entrada", ["Aprovado", "Quarentena"])
+                    
+                    pdf_coa = st.file_uploader("Anexar Certificado de Análise / Laudo (PDF)", type=["pdf"])
+                    
+                    if st.form_submit_button("Registrar Entrada de Lote"):
+                        if numero_lote and qtd_inicial > 0:
+                            reag_id = opcoes_prod[produto_sel]
+                            pdf_url = upload_pdf(pdf_coa, f"COA_{numero_lote}") if pdf_coa else None
+                            
+                            dado_lote = {
+                                "reagente_id": reag_id, "numero_lote": numero_lote, "data_fabricacao": str(data_fab), "data_validade": str(data_val),
+                                "quantidade_inicial": float(qtd_inicial), "quantidade_atual": float(qtd_inicial), "status": status_lote,
+                                "pdf_coa_url": pdf_url, "registrado_por": user_email
+                            }
+                            res_insert = supabase.table("reagentes_lotes").insert(dado_lote).execute()
+                            lote_id = res_insert.data[0]["id"]
+                            
+                            supabase.table("reagentes_movimentacao").insert({
+                                "lote_id": lote_id, "tipo_movimento": "Entrada", "quantidade": float(qtd_inicial),
+                                "observacao": "Entrada inicial de lote", "registrado_por": user_email
+                            }).execute()
+                            
+                            st.success("Lote e Laudo registrados com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("Preencha o Número do Lote e a Quantidade.")
+            else:
+                st.info("Cadastre produtos no catálogo primeiro.")
+
+        with tabs[3]:
+            st.subheader("Registrar Consumo / Baixa de Estoque")
+            if not df_lotes.empty and not df_cat.empty:
+                df_lotes_ativos = df_lotes[df_lotes["status"].isin(["Aprovado", "Em Uso"]) & (df_lotes["quantidade_atual"] > 0)]
+                if not df_lotes_ativos.empty:
+                    df_mix = df_lotes_ativos.merge(df_cat, left_on="reagente_id", right_on="id", suffixes=("_lote", "_prod"))
+                    opcoes_baixa = {f"Lote: {r['numero_lote']} | {r['nome']} | Disp: {r['quantidade_atual']} {r['unidade_medida']}": r['id_lote'] for _, r in df_mix.iterrows()}
+                    
+                    with st.form("form_baixa", clear_on_submit=True):
+                        lote_sel = st.selectbox("Selecione o Lote Físico para dar baixa *", list(opcoes_baixa.keys()))
+                        
+                        c1, c2 = st.columns(2)
+                        qtd_retirada = c1.number_input("Quantidade a abater do estoque *", min_value=0.01, step=0.1)
+                        tipo_baixa = c2.selectbox("Tipo de Movimento", ["Consumo", "Descarte (Vencido/Contaminado)", "Ajuste de Inventário"])
+                        obs = st.text_area("Justificativa / Ensaio onde foi utilizado")
+                        
+                        if st.form_submit_button("Confirmar Baixa"):
+                            lote_id = opcoes_baixa[lote_sel]
+                            
+                            lote_bd = supabase.table("reagentes_lotes").select("quantidade_atual, status, data_abertura, reagente_id").eq("id", lote_id).execute().data[0]
+                            qtd_atual_bd = float(lote_bd["quantidade_atual"])
+                            reagente_id = lote_bd["reagente_id"]
+                            
+                            if qtd_retirada > qtd_atual_bd:
+                                st.error(f"Quantidade insuficiente! Disponível: {qtd_atual_bd}.")
+                            else:
+                                nova_qtd = qtd_atual_bd - qtd_retirada
+                                novo_status = lote_bd["status"]
+                                nova_abertura = lote_bd["data_abertura"]
+                                
+                                if novo_status == "Aprovado" and tipo_baixa == "Consumo":
+                                    novo_status = "Em Uso"
+                                    nova_abertura = str(datetime.now().date())
+                                    
+                                if nova_qtd <= 0 or tipo_baixa == "Descarte (Vencido/Contaminado)":
+                                    novo_status = "Esgotado/Descartado"
+                                    nova_qtd = 0.0
+
+                                supabase.table("reagentes_lotes").update({
+                                    "quantidade_atual": nova_qtd, "status": novo_status, "data_abertura": nova_abertura
+                                }).eq("id", lote_id).execute()
+                                
+                                supabase.table("reagentes_movimentacao").insert({
+                                    "lote_id": lote_id, "tipo_movimento": tipo_baixa, "quantidade": float(-qtd_retirada),
+                                    "observacao": obs, "registrado_por": user_email
+                                }).execute()
+                                
+                                lotes_ativos = supabase.table("reagentes_lotes").select("quantidade_atual").eq("reagente_id", reagente_id).in_("status", ["Aprovado", "Em Uso", "Quarentena"]).execute().data
+                                estoque_total = sum(float(l["quantidade_atual"]) for l in lotes_ativos)
+                                
+                                reag_info = supabase.table("reagentes").select("nome, codigo_interno, estoque_minimo, unidade_medida").eq("id", reagente_id).execute().data[0]
+                                estoque_minimo = float(reag_info["estoque_minimo"])
+                                
+                                if estoque_total <= estoque_minimo:
+                                    nome_produto = reag_info["nome"]
+                                    cod_produto = reag_info["codigo_interno"]
+                                    unidade = reag_info["unidade_medida"]
+                                    
+                                    assunto = f"⚠️ [Lab Master] Alerta de Compra: {cod_produto} - {nome_produto}"
+                                    corpo = f"Prezado Setor de Compras / Gestor,\n\nO produto '{cod_produto} - {nome_produto}' atingiu o nível crítico do estoque de segurança.\n\nEstoque Atual: {estoque_total:.2f} {unidade}\nEstoque de Segurança (Mínimo): {estoque_minimo:.2f} {unidade}\n\nPor favor, providencie a reposição (compra).\n\nÚltima baixa registrada por: {user_email}"
+                                    
+                                    lista_gestores = obter_lista_gestores()
+                                    for gestor in lista_gestores:
+                                        enviar_notificacao_email(gestor, assunto, corpo)
+                                        
+                                    st.warning("⚠️ Estoque de segurança atingido! Alerta de compra enviado aos gestores.")
+                                    time.sleep(2)
+                                else:
+                                    st.success(f"Baixa de {qtd_retirada} registrada com sucesso. Novo saldo do lote: {nova_qtd}.")
+                                
+                                st.rerun()
+                else:
+                    st.info("Nenhum lote com saldo disponível para uso.")
+            else:
+                st.info("Não há lotes físicos cadastrados.")
+
+# ==============================================================================
+# 5. GERENCIAR EQUIPAMENTOS
+# ==============================================================================
+elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
+    st.header("📝 Gestão de Equipamentos (Req. 6.4.13)")
+    df_eq_exist = pd.DataFrame(supabase.table("equipamentos").select("*").execute().data or [])
+    
+    abas = ["📝 Cadastrar / Editar", "📁 Importação em Massa"]
+    if perfil == "Admin": abas.append("🗑️ Excluir")
+    tabs = st.tabs(abas)
+    
+    with tabs[0]:
+        tags = ["-- Cadastrar Novo --"] + (df_eq_exist["tag"].tolist() if not df_eq_exist.empty else [])
+        tag_sel = st.selectbox("Selecione para EDITAR ou mantenha para NOVO:", tags)
+        
+        def_v = {"tag": "", "nome": "", "marca": "", "modelo": "", "serial_number": "", "periodicidade_meses": 12, "status": "Operacional", "modalidade_calibracao": "Envio Externo"}
+        if tag_sel != "-- Cadastrar Novo --" and not df_eq_exist.empty:
+            def_v = df_eq_exist[df_eq_exist["tag"] == tag_sel].iloc[0].to_dict()
+            
+        with st.form("form_equip"):
+            c1, c2 = st.columns(2)
+            with c1:
+                tag = st.text_input("Tag / Código Interno *", value=str(def_v.get("tag", "")), placeholder="Ex: BALA-001", help="Padrão obrigatório: 4 letras, um hífen e 3 números (ex: ICPO-001)")
+                nome = st.text_input("Nome do Equipamento *", value=str(def_v.get("nome", "")))
+                marca = st.text_input("Marca / Fabricante", value=str(def_v.get("marca", "")))
+                periodicidade = st.number_input("Periodicidade Padrão de Calibração (em Meses) *", min_value=1, max_value=60, value=int(def_v.get("periodicidade_meses", 12)))
+            with c2:
+                modelo = st.text_input("Modelo", value=str(def_v.get("modelo", "")))
+                serial_number = st.text_input("Número de Série", value=str(def_v.get("serial_number", "")))
+                op_mod = ["Envio Externo", "In-Loco", "Qualificação OQ/PQ"]
+                modalidade = st.selectbox("Modalidade de Serviço", op_mod, index=op_mod.index(def_v.get("modalidade_calibracao", "Envio Externo")) if def_v.get("modalidade_calibracao") in op_mod else 0)
+                op_st = ["Operacional", "Em Calibração", "Em Manutenção", "Interditado / Fora de Uso"]
+                status = st.selectbox("Status Operacional", op_st, index=op_st.index(def_v.get("status", "Operacional")) if def_v.get("status") in op_st else 0)
+            
+            if st.form_submit_button("Salvar Equipamento"):
+                tag = tag.strip().upper()
+                if not re.match(r'^[A-Z]{4}-\d{3}$', tag):
+                    st.error("❌ A Tag deve seguir o padrão rigoroso de 4 letras, um hífen e 3 números (Ex: BALA-001).")
+                elif tag and nome:
+                    dado = {"tag": tag, "nome": nome, "marca": marca, "modelo": modelo, "serial_number": serial_number, "periodicidade_meses": int(periodicidade), "status": status, "modalidade_calibracao": modalidade, "registrado_por": user_email}
+                    supabase.table("equipamentos").upsert(dado, on_conflict="tag").execute()
+                    st.success(f"Equipamento {tag} gravado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Preencha a Tag e o Nome.")
+
+    with tabs[1]:
+        arquivo = st.file_uploader("Suba uma planilha (.csv ou .xlsx)", type=["csv", "xlsx"])
+        if arquivo:
+            try:
+                df_imp = pd.read_csv(arquivo) if arquivo.name.endswith(".csv") else pd.read_excel(arquivo)
+                st.dataframe(df_imp.head(), use_container_width=True)
+                if st.button("🚀 Confirmar Importação") and "tag" in df_imp.columns and "nome" in df_imp.columns:
+                    registros = []
+                    erros_tag = []
+                    
+                    for _, r in df_imp.iterrows():
+                        tag_imp = str(r["tag"]).strip().upper()
+                        if not re.match(r'^[A-Z]{4}-\d{3}$', tag_imp):
+                            erros_tag.append(tag_imp)
+                            continue
+                            
+                        registros.append({
+                            "tag": tag_imp, "nome": str(r["nome"]).strip(),
+                            "marca": str(r.get("marca", "")), "modelo": str(r.get("modelo", "")),
+                            "serial_number": str(r.get("serial_number", "")),
+                            "periodicidade_meses": int(r.get("periodicidade_meses", 12)),
+                            "status": str(r.get("status", "Operacional")),
+                            "modalidade_calibracao": str(r.get("modalidade_calibracao", "Envio Externo")), "registrado_por": user_email
+                        })
+                    
+                    if erros_tag:
+                        st.warning(f"⚠️ As seguintes Tags foram ignoradas por estarem fora do padrão (AAAA-NNN): {', '.join(erros_tag)}")
+                        
+                    if registros:
+                        supabase.table("equipamentos").upsert(registros, on_conflict="tag").execute()
+                        st.success(f"{len(registros)} equipamentos importados com sucesso!")
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Erro: {e}")
+
+    if perfil == "Admin" and len(tabs) > 2:
+        with tabs[2]:
+            st.warning("Atenção: A exclusão de um equipamento é permanente.")
+            if not df_eq_exist.empty:
+                tag_exc = st.selectbox("Selecione a TAG:", df_eq_exist["tag"].tolist())
+                if st.button("🗑️ Excluir Permanentemente") and st.checkbox("Confirmo a exclusão"):
+                    supabase.table("equipamentos").delete().eq("tag", tag_exc).execute()
+                    st.success("Excluído!")
                     st.rerun()
 
-    with tab2:
-        try:
-            res_tnc = supabase.table("trabalho_nao_conforme").select("*").order("criado_em", ascending=False).execute()
-            df_tnc = pd.DataFrame(res_tnc.data or [])
-            if not df_tnc.empty:
-                st.dataframe(df_tnc[["equip_tag", "origem_evento", "analise_impacto_retroativa", "status", "criado_em"]], use_container_width=True)
-            else:
-                st.info("Nenhuma investigação de trabalho não conforme aberta no momento.")
-        except Exception as e:
-            st.warning(f"Tabela de Trabalho Não Conforme pendente de inicialização: {e}")
-
 # ==============================================================================
-# 4. CALIBRAÇÕES E REGRA DE DECISÃO METROLÓGICA (|E| + U <= EMP)
+# 6. CALIBRAÇÕES
 # ==============================================================================
 elif menu == "📐 Calibrações & Qualificações" and perfil in ["Admin", "Tecnico"]:
-    st.header("📐 Registro Metrológico de Calibração (ISO/IEC 17025 Sec 6.5)")
-    dados_eq = buscar_equipamentos_seguro()
-    equipamentos_dados = {i["tag"]: i for i in dados_eq} if dados_eq else {}
+    st.header("📐 Registro de Calibração")
+    eq_res = supabase.table("equipamentos").select("tag, nome, periodicidade_meses").execute()
+    equipamentos_dados = {i["tag"]: i for i in eq_res.data} if eq_res.data else {}
     tags = list(equipamentos_dados.keys())
+    lista_gestores = obter_lista_gestores()
     
     if tags:
         equip_tag = st.selectbox("Selecione o Equipamento *", tags)
+        
         periodicidade_meses = equipamentos_dados[equip_tag].get("periodicidade_meses") or 12
+        st.info(f"ℹ️ Periodicidade cadastrada para {equip_tag}: **{periodicidade_meses} meses**. O próximo vencimento e a parada no cronograma serão calculados automaticamente.")
         
         with st.form("form_calib", clear_on_submit=True):
             c1, c2 = st.columns(2)
-            data_calib = c1.date_input("Data da Calibração Realizada", value=datetime.now().date())
-            certificado = c2.text_input("Número do Certificado / Laudo *")
-            
-            st.markdown("##### 📏 Avaliação Metrológica Automática")
-            c3, c4, c5 = st.columns(3)
-            erro_medido = c3.number_input("Erro Sistemático Medido (|E|)", format="%.6f")
-            incerteza_exp = c4.number_input("Incerteza Expandida (U, k=2)", format="%.6f")
-            emp_processo = c5.number_input("Erro Máximo Permitido (EMP)", format="%.6f")
-            
+            with c1:
+                data_calib = st.date_input("Data da Calibração Realizada", value=datetime.now().date())
+                resultado = st.selectbox("Resultado *", ["Aprovado", "Reprovado"])
+            with c2:
+                data_venc_calc = (pd.to_datetime(data_calib) + pd.DateOffset(months=periodicidade_meses)).date()
+                data_venc = st.date_input("Próximo Vencimento (Calculado Automático)", value=data_venc_calc)
+                certificado = st.text_input("Número do Certificado / Laudo *")
+                gestor_notificar = st.selectbox("Gestor a Notificar *", lista_gestores)
+                
             pdf_file = st.file_uploader("Anexar Certificado de Calibração (PDF)", type=["pdf"])
             
-            if st.form_submit_button("Avaliar Certificado & Salvar"):
-                desvio_total = abs(erro_medido) + abs(incerteza_exp)
-                is_conforme = True
-                if emp_processo > 0 and desvio_total > emp_processo:
-                    is_conforme = False
-                    
-                resultado = "Aprovado" if is_conforme else "Reprovado"
-                data_venc = (pd.to_datetime(data_calib) + pd.DateOffset(months=periodicidade_meses)).date()
+            if st.form_submit_button("Registrar Calibração & Agendar Próximo Ciclo"):
                 pdf_url = upload_pdf(pdf_file, f"CALIB_{equip_tag}") if pdf_file else None
-
+                
                 supabase.table("calibracoes").insert({
-                    "equip_tag": equip_tag,
-                    "data_calib": str(data_calib),
-                    "data_venc": str(data_venc),
-                    "resultado": resultado,
-                    "certificado": certificado,
-                    "erro_medido": float(erro_medido),
-                    "incerteza_exp": float(incerteza_exp),
-                    "emp_processo": float(emp_processo),
-                    "is_conforme": is_conforme,
-                    "pdf_url": pdf_url,
+                    "equip_tag": equip_tag, 
+                    "data_calib": str(data_calib), 
+                    "data_venc": str(data_venc), 
+                    "resultado": resultado, 
+                    "certificado": certificado, 
+                    "pdf_url": pdf_url, 
                     "registrado_por": user_email
                 }).execute()
-
-                novo_status = "Operacional" if is_conforme else "Interditado / Fora de Uso"
+                
+                novo_status = "Operacional" if resultado == "Aprovado" else "Interditado / Fora de Uso"
                 supabase.table("equipamentos").update({"status": novo_status}).eq("tag", equip_tag).execute()
-
-                if not is_conforme:
-                    supabase.table("trabalho_nao_conforme").insert({
+                
+                if resultado == "Aprovado":
+                    data_inicio_ag = data_venc - timedelta(days=7)
+                    supabase.table("agendamentos_logistica").insert({
                         "equip_tag": equip_tag,
-                        "origem_evento": f"Reprovação Metrológica no Certificado {certificado}",
-                        "analise_impacto_retroativa": f"INVESTIGAÇÃO AUTOMÁTICA ISO 17025 (SEÇÃO 7.10): (|E| + U = {desvio_total:.6f} > EMP {emp_processo:.6f}). Avaliar ensaios executados.",
+                        "tipo_evento": "Calibração Programada (Automática)",
+                        "data_inicio": str(data_inicio_ag),
+                        "data_fim": str(data_venc),
+                        "destino_fornecedor": "Laboratório Credenciado RBC / A Definir",
+                        "custo_transporte": 0.0,
+                        "custo_servico": 0.0,
+                        "status": "Programado",
+                        "observacoes": f"Agendamento ciclo automático ({periodicidade_meses} meses) pós-calibração Laudo nº {certificado}.",
                         "registrado_por": user_email
                     }).execute()
-                    st.error(f"🚨 Calibração REPROVADA! (|E| + U = {desvio_total:.6f} > EMP {emp_processo:.6f}). Equipamento INTERDITADO.")
-                else:
-                    st.success(f"✅ Calibração APROVADA! (|E| + U = {desvio_total:.6f} ≤ EMP {emp_processo:.6f}). Equipamento Operacional.")
                     
+                    enviar_notificacao_email(gestor_notificar, f"✅ Calibração Aprovada: {equip_tag}", f"Atenção Gestor,\n\nO equipamento {equip_tag} foi APROVADO na calibração.\n\nCertificado: {certificado}\nPróximo Vencimento: {data_venc}\nRegistrado por: {user_email}")
+                
+                if resultado == "Reprovado":
+                    enviar_notificacao_email(gestor_notificar, f"🚨 Reprovação de Calibração: {equip_tag}", f"Atenção Gestor,\n\nO equipamento {equip_tag} foi REPROVADO na calibração realizada em {data_calib}.\n\nCertificado: {certificado}\nStatus: Interditado / Fora de Uso\nRegistrado por: {user_email}")
+                
+                st.success(f"Calibração de {equip_tag} gravada! Próximo envio agendado automaticamente no cronograma para {data_venc}.")
                 time.sleep(2)
                 st.rerun()
 
 # ==============================================================================
-# 5. DEMAIS MÓDULOS (REAGENTES, LOGÍSTICA, GERENCIAMENTO, ACESSOS)
+# 7. MANUTENÇÕES
 # ==============================================================================
-elif menu == "📦 Controle de Estoque":
-    st.header("📦 Gestão de Reagentes, Consumíveis e Laudos CoA (Req. 6.6)")
-    try:
-        res_cat = supabase.table("reagentes").select("*").execute()
-        df_cat = pd.DataFrame(res_cat.data or [])
-        if not df_cat.empty:
-            st.dataframe(df_cat, use_container_width=True)
-        else:
-            st.info("Nenhum reagente cadastrado no estoque.")
-    except Exception as e:
-        st.warning(f"Tabela de reagentes não encontrada: {e}")
-
-elif menu == "📝 Gerenciar Equipamentos" and perfil in ["Admin", "Tecnico"]:
-    st.header("📝 Cadastrar Equipamento com Tag Padrão (AAAA-NNN)")
-    with st.form("form_cad_eq_padrão"):
-        c1, c2 = st.columns(2)
-        tag = c1.text_input("Tag / Código Interno (ex: BALA-001) *")
-        nome = c2.text_input("Nome do Equipamento *")
-        marca = c1.text_input("Marca *")
-        modelo = c2.text_input("Modelo *")
-        serial = c1.text_input("Número de Série *")
-        period = c2.number_input("Periodicidade de Calibração (Meses)", min_value=1, value=12)
-        
-        if st.form_submit_button("Cadastrar Ativo"):
-            tag_clean = tag.strip().upper()
-            if not re.match(r'^[A-Z]{4}-\d{3}$', tag_clean):
-                st.error("❌ A Tag deve seguir o padrão estrito de 4 letras, hífen e 3 dígitos (Ex: BALA-001).")
-            elif tag_clean and nome:
-                supabase.table("equipamentos").upsert({
-                    "tag": tag_clean,
-                    "nome": nome,
-                    "marca": marca,
-                    "modelo": modelo,
-                    "serial_number": serial,
-                    "periodicidade_meses": int(period),
-                    "status": "Em Comissionamento",
-                    "registrado_por": user_email
-                }, on_conflict="tag").execute()
-                st.success(f"Equipamento {tag_clean} cadastrado com sucesso!")
+elif menu == "🛠️ Manutenções & Intervenções" and perfil in ["Admin", "Tecnico"]:
+    st.header("🛠️ Registro de Manutenção")
+    eq_res = supabase.table("equipamentos").select("tag").execute()
+    tags = [i["tag"] for i in eq_res.data] if eq_res.data else []
+    lista_gestores = obter_lista_gestores()
+    
+    if tags:
+        with st.form("form_manut", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                equip_tag = st.selectbox("Equipamento *", tags)
+                tipo = st.selectbox("Tipo de Intervenção *", ["Preventiva", "Corretiva", "Ajuste / Qualificação"])
+                data_intervencao = st.date_input("Data")
+                tecnico = st.text_input("Técnico / Empresa Responsável")
+            with c2:
+                status_pos = st.selectbox("Status Pós-Manutenção *", ["Operacional", "Em Calibração", "Em Manutenção", "Interditado / Fora de Uso"])
+                gestor_notificar = st.selectbox("Gestor a Notificar *", lista_gestores)
+                descricao = st.text_area("Descrição detalhada")
+                
+            pdf_file = st.file_uploader("Anexar Relatório (PDF)", type=["pdf"])
+            
+            if st.form_submit_button("Registrar Manutenção"):
+                pdf_url = upload_pdf(pdf_file, f"MANUT_{equip_tag}") if pdf_file else None
+                supabase.table("manutencoes").insert({"equip_tag": equip_tag, "tipo": tipo, "data_intervencao": str(data_intervencao), "tecnico": tecnico, "descricao": descricao, "pdf_url": pdf_url, "registrado_por": user_email}).execute()
+                supabase.table("equipamentos").update({"status": status_pos}).eq("tag", equip_tag).execute()
+                
+                if tipo == "Corretiva" or status_pos in ["Interditado / Fora de Uso", "Em Manutenção", "Em Calibração"]:
+                    enviar_notificacao_email(gestor_notificar, f"⚠️ Alerta de Parada/Manutenção: {equip_tag}", f"Prezado Gestor,\n\nIntervenção registrada para {equip_tag}.\n\nTipo: {tipo}\nNovo Status: {status_pos}\nDescrição: {descricao}\n\nRegistrado por: {user_email}")
+                
+                st.success("Manutenção registrada com sucesso!")
                 st.rerun()
 
+# ==============================================================================
+# 8. GESTÃO DE ACESSOS E ALERTAS
+# ==============================================================================
 elif menu == "👥 Gestão de Acessos" and perfil == "Admin":
-    st.header("👥 Gestão de Usuários (@inplanet.earth)")
-    try:
-        res_u = supabase.table("usuarios").select("email, perfil, criado_em").execute()
-        if res_u.data:
-            st.dataframe(pd.DataFrame(res_u.data), use_container_width=True)
-    except Exception as e:
-        st.error(f"Erro ao carregar usuários: {e}")
+    st.header("👥 Gestão de Usuários e Destinatários de Alertas")
+    tab_users, tab_alertas = st.tabs(["👤 Controle de Usuários", "📩 Destinatários de Alertas"])
+    
+    with tab_users:
+        st.subheader("Usuários Ativos")
+        res_users = supabase.table("usuarios").select("id, email, perfil, criado_em").execute()
+        if res_users.data: st.dataframe(pd.DataFrame(res_users.data)[["email", "perfil", "criado_em"]], use_container_width=True)
+        
+        with st.form("form_user", clear_on_submit=True):
+            col1, col2, col3 = st.columns(3)
+            novo_email = col1.text_input("E-mail (@inplanet.earth)")
+            novo_perfil = col2.selectbox("Perfil", ["Leitura", "Tecnico", "Admin"])
+            nova_senha = col3.text_input("Senha", type="password")
+            
+            if st.form_submit_button("Salvar Usuário"):
+                if novo_email.endswith("@inplanet.earth") and nova_senha:
+                    supabase.table("usuarios").upsert({"email": novo_email, "perfil": novo_perfil, "senha": hash_senha(nova_senha)}, on_conflict="email").execute()
+                    
+                    assunto_bem_vindo = "🧪 Bem-vindo ao Lab Master - Suas credenciais de acesso"
+                    corpo_bem_vindo = f"""Olá!
+
+Você foi cadastrado no sistema Lab Master - InPlanet LMS.
+
+O Lab Master é a nossa plataforma rigorosa de gestão laboratorial, focada na conformidade com a ISO/IEC 17025. Nela nós controlamos:
+- Inventário e status operacional de Equipamentos;
+- Calibrações, Manutenções e Qualificações;
+- Estoque de Reagentes, Consumíveis e Certificados de Análise (CoA).
+
+Suas credenciais de acesso são:
+👤 E-mail (Login): {novo_email}
+🔑 Senha Temporária: {nova_senha}
+🛡️ Nível de Acesso: {novo_perfil}
+
+⚠️ Atenção: Por questões de segurança, sua sessão será encerrada automaticamente após 10 minutos de inatividade na bancada.
+
+Bom trabalho!
+Equipe Lab Master / InPlanet"""
+
+                    enviar_notificacao_email(novo_email, assunto_bem_vindo, corpo_bem_vindo)
+                    
+                    st.success("Usuário salvo e e-mail de boas-vindas com as credenciais enviado!")
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("Preencha um e-mail @inplanet.earth e uma senha válida.")
+
+    with tab_alertas:
+        st.subheader("📋 Lista de Gestores e Destinatários")
+        try:
+            res_dest = supabase.table("destinatarios_alertas").select("*").execute()
+            df_dest = pd.DataFrame(res_dest.data or [])
+            if not df_dest.empty: st.dataframe(df_dest[["email", "ativo", "criado_em"]], use_container_width=True)
+            
+            with st.form("form_destinatario", clear_on_submit=True):
+                c1, c2 = st.columns([2, 1])
+                email_alerta = c1.text_input("E-mail do Destinatário")
+                status_alerta = c2.selectbox("Status", [True, False], format_func=lambda x: "Ativo" if x else "Inativo")
+                if st.form_submit_button("Salvar Destinatário") and email_alerta:
+                    supabase.table("destinatarios_alertas").upsert({"email": email_alerta, "ativo": status_alerta}, on_conflict="email").execute()
+                    st.success("Destinatário salvo!")
+                    st.rerun()
+        except Exception:
+            st.warning("⚠️ Tabela 'destinatarios_alertas' não encontrada no banco.")
